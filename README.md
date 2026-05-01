@@ -1,80 +1,84 @@
 # Nanobot Source Atlas
 
-Nanobot Source Atlas is a local read-only source learning page for [HKUDS/nanobot](https://github.com/HKUDS/nanobot).
+Nanobot Source Atlas 是一个本地只读源码学习页面，当前主要用于阅读和理解 [HKUDS/nanobot](https://github.com/HKUDS/nanobot)。
 
-The v2 product is no longer a report generator. It is a three-pane source reading workspace:
+v2 版本不再是报告生成器，而是一个三栏源码阅读工作台：
 
-- Left: project map with directories, files, functions, short labels, and important items.
-- Center: read-only Monaco code view with key-function ranges, code-block notes, variable highlighting, and a draggable explanation panel.
-- Right: Prompt / Context / Harness flow tabs that connect agent-building concepts back to real functions.
+- 左侧：项目地图，展示目录、文件、函数、极短说明和重要项。
+- 中间：只读 Monaco 源码区，展示关键函数底色、关键代码块说明、变量高亮和可拖动解释浮窗。
+- 右侧：Prompt / Context / Harness 流程视角，把 agent 构建概念关联到真实函数。
 
-## Run
+## 运行
 
 ```powershell
 node .\server.js
 ```
 
-Open:
+打开：
 
 ```text
 http://127.0.0.1:3939
 ```
 
-If port `3939` is already occupied, run on another port:
+如果 `3939` 端口被占用，可以换端口：
 
 ```powershell
 $env:PORT='3944'; node .\server.js
 ```
 
-## Use
+也可以直接运行：
 
-1. Open the local page.
-2. Optionally enter an OpenAI-compatible API key, base URL, and model.
-3. Click `GitHub` to analyze the public nanobot repository.
-4. Or enter a local project path and click `本地` to analyze downloaded source code without calling GitHub.
-5. Leave `重新分析` unchecked to reuse the on-disk cache. Check it only when you want to spend tokens again and refresh the analysis.
+```powershell
+.\start.bat
+```
 
-If no API key is provided, the app still builds a local fallback view from repository facts, directory structure, Python function indexing, and path heuristics. With an API key, it also asks the LLM to produce tree labels, flow cards, and key-code annotations.
+## 使用方式
 
-Use local analysis when anonymous GitHub API requests hit rate limits. The local mode expects a filesystem directory, for example:
+1. 打开本地页面。
+2. 可选填写 OpenAI 兼容的 API Key、Base URL 和模型名。
+3. 点击 `GitHub` 分析公开的 nanobot 仓库。
+4. 或填写本地项目路径，点击 `本地` 分析已经下载好的源码。
+5. 使用 `历史分析` 和 `读取` 查看之前保存过的分析结果，不会再次消耗 token。
+6. 左上角 `⛶` 按钮可以进入或退出全屏阅读。
+
+不填写 API Key 时，系统仍会基于仓库事实、目录结构、Python 函数索引和本地规则生成兜底视图。填写 API Key 后，会额外调用 LLM 生成目录说明、流程卡片和关键代码注释。
+
+当 GitHub 匿名请求触发 rate limit 时，建议把源码手动下载到本地，再用 `本地` 模式分析。例如：
 
 ```text
 D:\code\nanobot
 ```
 
-Analysis results are cached under `.cache/source-atlas/`. The cache stores generated source-learning data and LLM audit logs, but never stores your API key. The browser settings cache also does not persist the API key.
+## 隐私与缓存
 
-Every new analysis also writes a history snapshot. Use the `历史分析` selector in the top bar to switch between older analyses without spending tokens again.
+分析结果保存在 `.cache/source-atlas/`，其中包含生成后的源码学习数据和 LLM 调用审计日志。
 
-## Current API
+不会保存或上传 API Key。浏览器本地设置也不会持久化 API Key。
 
-- `GET /api/health`: service health and defaults.
-- `POST /api/v2/analyze`: analyzes either `HKUDS/nanobot` or a local source directory.
-- `GET /api/v2/file?path=...`: fetches a single text file from nanobot.
-- `GET /api/v2/file?path=...&localPath=...`: fetches a single text file from a local source directory.
-- `GET /api/v2/logs`: returns the latest analysis log snapshot with UTC and Asia/Shanghai local time.
-- `GET /api/v2/model-logs`: returns full LLM audit logs, including assembled messages, system prompt, user prompt, raw model responses, repaired responses, and parsed JSON.
-- `GET /api/v2/history`: lists saved analysis snapshots.
-- `GET /api/v2/history/load?id=...`: loads one saved analysis snapshot and makes its model logs current.
+每次点击 `GitHub` 或 `本地` 都会开始一次新的分析，并写入一条历史快照。之后可以通过 `历史分析` 下拉框切换到旧结果。
 
-`/api/v2/logs` is the stage-level run log. Use `/api/v2/model-logs` when debugging prompt composition, context selection, or bad LLM labels.
+## 当前接口
 
-## Verification
+- `GET /api/health`：服务健康检查和默认配置。
+- `POST /api/v2/analyze`：分析 `HKUDS/nanobot` 或本地源码目录。
+- `GET /api/v2/file?path=...`：读取 nanobot 仓库里的单个文本文件。
+- `GET /api/v2/file?path=...&localPath=...`：读取本地源码目录里的单个文本文件。
+- `GET /api/v2/logs`：查看最近一次分析的阶段日志，包含 UTC 和 Asia/Shanghai 本地时间。
+- `GET /api/v2/model-logs`：查看完整 LLM 调用审计，包括系统提示词、用户提示词、最终 messages、原始返回、修复返回和解析后的 JSON。
+- `GET /api/v2/history`：列出保存过的分析历史。
+- `GET /api/v2/history/load?id=...`：读取某一次历史分析，并把它的模型日志设为当前日志。
+
+`/api/v2/logs` 用来看分析跑到哪一步。调试 prompt、上下文拼装和模型返回质量时，看 `/api/v2/model-logs`。
+
+## 验证
 
 ```powershell
 node --check .\server.js
 node --check .\public\app.js
 ```
 
-Real GitHub smoke test used during implementation:
+## 说明
 
-- Repository: `HKUDS/nanobot`
-- Files returned to UI: `260`
-- Python functions indexed: `990`
-- Local fallback key annotations: `16`
-- Flow tabs: `4`
-
-## Notes
-
-- Monaco Editor is loaded from CDN for the read-only code view.
-- This product intentionally does not support code editing, debugging, terminals, git operations, private repositories, or a general IDE workflow.
+- Monaco Editor 通过 CDN 加载，用作只读源码展示组件。
+- 项目不提供代码编辑、调试、终端、git 操作、私有仓库读取或通用 IDE 能力。
+- `.cache/`、运行日志、维护文档不会被提交到 GitHub。

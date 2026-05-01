@@ -9,19 +9,18 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div class="brand">
-          <strong>Nanobot Source Atlas</strong>
-          <span>HKUDS/nanobot 专用源码学习页</span>
+        <div class="brand-wrap">
+          <button id="fullscreenButton" class="fullscreen-button" type="button" title="全屏阅读" aria-label="全屏阅读">⛶</button>
+          <div class="brand">
+            <strong>Nanobot Source Atlas</strong>
+            <span>HKUDS/nanobot 专用源码学习页</span>
+          </div>
         </div>
         <form id="settingsForm" class="settings">
           <input id="apiKeyInput" type="password" placeholder="LLM API Key（可留空使用本地兜底）" autocomplete="off" />
           <input id="localPathInput" type="text" placeholder="本地项目路径，例如 D:\code\nanobot" />
           <input id="baseUrlInput" type="text" value="https://api.openai.com/v1" aria-label="Base URL" />
           <input id="modelInput" type="text" value="gpt-4.1-mini" aria-label="Model" />
-          <label class="force-label" title="勾选后忽略本地缓存，重新调用 LLM 分析">
-            <input id="forceAnalyzeInput" type="checkbox" />
-            重新分析
-          </label>
           <button id="analyzeGithubButton" type="submit" data-source="github">GitHub</button>
           <button id="analyzeLocalButton" type="submit" data-source="local">本地</button>
           <select id="historySelect" aria-label="历史分析">

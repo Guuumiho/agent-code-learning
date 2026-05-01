@@ -5,9 +5,9 @@ const apiKeyInput = document.getElementById("apiKeyInput");
 const localPathInput = document.getElementById("localPathInput");
 const baseUrlInput = document.getElementById("baseUrlInput");
 const modelInput = document.getElementById("modelInput");
-const forceAnalyzeInput = document.getElementById("forceAnalyzeInput");
 const historySelect = document.getElementById("historySelect");
 const loadHistoryButton = document.getElementById("loadHistoryButton");
+const fullscreenButton = document.getElementById("fullscreenButton");
 const treeRoot = document.getElementById("treeRoot");
 const treeMeta = document.getElementById("treeMeta");
 const statusText = document.getElementById("statusText");
@@ -55,7 +55,6 @@ function saveSettings() {
     localPath: localPathInput.value,
     baseUrl: baseUrlInput.value,
     model: modelInput.value,
-    forceAnalyze: forceAnalyzeInput.checked,
   }));
 }
 
@@ -66,7 +65,6 @@ function loadSettings() {
     localPathInput.value = settings.localPath || "";
     baseUrlInput.value = settings.baseUrl || "https://api.openai.com/v1";
     modelInput.value = settings.model || "gpt-4.1-mini";
-    forceAnalyzeInput.checked = Boolean(settings.forceAnalyze);
   } catch {
     // Ignore broken local settings.
   }
@@ -74,6 +72,25 @@ function loadSettings() {
 
 function setStatus(message) {
   statusText.textContent = message;
+}
+
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await document.documentElement.requestFullscreen();
+    }
+  } catch (error) {
+    setStatus(`全屏切换失败：${error.message}`);
+  }
+}
+
+function syncFullscreenButton() {
+  const active = Boolean(document.fullscreenElement);
+  fullscreenButton.textContent = active ? "×" : "⛶";
+  fullscreenButton.title = active ? "退出全屏" : "全屏阅读";
+  fullscreenButton.setAttribute("aria-label", active ? "退出全屏" : "全屏阅读");
 }
 
 function formatHistoryTime(value) {
@@ -133,7 +150,7 @@ async function loadSelectedHistory() {
 function noteFor(pathValue, type) {
   const note = appData?.treeNotes?.find((item) => item.path === pathValue && item.type === type);
   return note || {
-    label: pathValue.split("/").pop(),
+    label: "",
     importance: "normal",
   };
 }
@@ -590,8 +607,15 @@ function renderVariableFlow(flow) {
   `;
 }
 
-function renderSourceNode(value) {
-  return `<span class="data-node">${escapeHtml(value)}</span>`;
+function renderSourceNode(source) {
+  const item = typeof source === "string" ? { name: source } : source;
+  const detail = [item.detail, item.value, item.use].filter(Boolean).join("；");
+  return `
+    <span class="data-node">
+      <code>${escapeHtml(item.name || "输入")}</code>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+    </span>
+  `;
 }
 
 function renderPills(items = []) {
@@ -676,7 +700,7 @@ async function applyAnalysisData(data, statusPrefix = "") {
   const firstKey = appData.functions.find((fn) => fn.isKey) || appData.functions[0];
   if (firstKey) await openFile(firstKey.file, { line: firstKey.startLine, flashName: firstKey.name });
   const elapsed = appData.project?.elapsedMs ? ` · ${Math.round(appData.project.elapsedMs / 1000)}s` : "";
-  const prefix = statusPrefix || (appData.project?.loadedFromCache ? "读取缓存完成" : "完成");
+  const prefix = statusPrefix || "完成";
   setStatus(`${prefix}：${appData.functions.length} functions · ${appData.keyAnnotations.length} key annotations${elapsed}`);
 }
 
@@ -707,7 +731,6 @@ async function analyze(event) {
         model: modelInput.value.trim(),
         source,
         localPath,
-        force: forceAnalyzeInput.checked,
       }),
     });
     const data = await response.json();
@@ -784,5 +807,7 @@ settingsForm.addEventListener("submit", analyze);
 loadHistoryButton.addEventListener("click", loadSelectedHistory);
 historySelect.addEventListener("focus", loadHistoryList);
 historySelect.addEventListener("click", loadHistoryList);
+fullscreenButton.addEventListener("click", toggleFullscreen);
+document.addEventListener("fullscreenchange", syncFullscreenButton);
 loadHistoryList();
 initEditor().catch(() => {});

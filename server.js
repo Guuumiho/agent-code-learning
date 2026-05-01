@@ -8,7 +8,7 @@ const HOST = "127.0.0.1";
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3939;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const CACHE_DIR = path.join(__dirname, ".cache", "source-atlas");
-const CACHE_SCHEMA_VERSION = "v2-mvp-cache-5";
+const CACHE_SCHEMA_VERSION = "v2-mvp-cache-7";
 const CACHE_COMPATIBLE_SCHEMAS = new Set([CACHE_SCHEMA_VERSION]);
 const NANOBOT_OWNER = "HKUDS";
 const NANOBOT_REPO = "nanobot";
@@ -150,12 +150,55 @@ function inferPathKeyword(value) {
   if (path.basename(normalized) === "__init__.py") {
     return "包入口";
   }
+  const exactRules = new Map([
+    [".github", "仓库配置"],
+    ["bridge", "前端桥接"],
+    ["docs", "说明文档"],
+    ["nanobot", "主程序"],
+    ["api", "接口层"],
+    ["bus", "消息总线"],
+    ["cli", "命令入口"],
+    ["command", "命令集"],
+    ["commands", "命令集"],
+    ["channels", "聊天通道"],
+    ["providers", "模型提供商"],
+    ["skills", "技能库"],
+    ["subagent", "子代理"],
+    ["tools", "工具集"],
+    ["autocompact", "自动压缩"],
+    ["hook", "回调钩子"],
+    ["memory", "记忆存储"],
+    ["runner", "代理运行器"],
+    ["loop", "代理主循环"],
+    ["context", "上下文构建"],
+    ["configuration", "配置说明"],
+    ["readme", "项目说明"],
+    ["package", "依赖配置"],
+  ]);
+  const rawBaseName = path.basename(normalized);
+  const baseName = rawBaseName.replace(/\.[^.]+$/, "");
+  if (exactRules.has(rawBaseName)) {
+    return exactRules.get(rawBaseName);
+  }
+  if (exactRules.has(baseName)) {
+    return exactRules.get(baseName);
+  }
   const hit = KEYWORD_RULES.find(([pattern]) => pattern.test(normalized));
   if (hit) {
     return hit[1];
   }
-  const base = path.basename(value).replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
-  return base.length > 12 ? base.slice(0, 12) : base || "源码";
+  const segments = baseName.split(/[_-]+/).filter(Boolean);
+  if (segments.length > 1) {
+    const mapped = segments.map((segment) => exactRules.get(segment) || "");
+    const firstKnown = mapped.find(Boolean);
+    if (firstKnown) {
+      return firstKnown;
+    }
+  }
+  if (/^[a-z0-9._-]+$/i.test(baseName)) {
+    return "";
+  }
+  return "";
 }
 
 function inferFunctionKeyword(name) {
@@ -187,7 +230,7 @@ function inferFunctionKeyword(name) {
   if (hit) {
     return hit[1];
   }
-  return name.split(".").pop().replace(/^_+/, "").replace(/_/g, " ").slice(0, 12) || "函数";
+  return "";
 }
 
 function scorePath(filePath, size = 0) {
@@ -1068,11 +1111,11 @@ function isLowValueReturnBlock(block, lines) {
 function sanitizeVariableFlows(rawFlows, legacyVariables = {}) {
   const flows = (Array.isArray(rawFlows) ? rawFlows : []).map((flow) => ({
     name: String(flow?.name || "").slice(0, 32),
-    label: String(flow?.label || flow?.meaning || "").slice(0, 40),
-    before: String(flow?.before || flow?.from || "").slice(0, 80),
-    sources: strings(flow?.sources).slice(0, 4).map((item) => item.slice(0, 32)),
-    after: String(flow?.after || flow?.to || "").slice(0, 90),
-    effect: String(flow?.effect || flow?.why || "").slice(0, 120),
+    label: String(flow?.label || flow?.meaning || "").slice(0, 80),
+    before: String(flow?.before || flow?.from || "").slice(0, 140),
+    sources: sanitizeFlowSources(flow?.sources).slice(0, 4),
+    after: String(flow?.after || flow?.to || "").slice(0, 180),
+    effect: String(flow?.effect || flow?.why || "").slice(0, 180),
   })).filter((flow) => flow.name && (flow.label || flow.before || flow.after || flow.effect));
 
   if (flows.length) {
@@ -1086,14 +1129,31 @@ function sanitizeVariableFlows(rawFlows, legacyVariables = {}) {
     name: extractVariableName(output) || output,
     label: "输出数据",
     before: inputs.length ? `来自 ${inputs.join("、")}` : "函数内部构造",
-    sources: inputs,
+    sources: inputs.map((input) => ({ name: input, detail: "" })),
     after: output,
     effect: changes.join("；") || String(legacyVariables?.note || "").slice(0, 120),
   })).slice(0, 3);
 }
 
+function sanitizeFlowSources(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((source) => {
+    if (typeof source === "string") {
+      return { name: source.slice(0, 32), detail: "" };
+    }
+    return {
+      name: String(source?.name || "").slice(0, 32),
+      detail: String(source?.detail || source?.label || source?.meaning || "").slice(0, 120),
+      value: String(source?.value || source?.current || "").slice(0, 100),
+      use: String(source?.use || source?.effect || "").slice(0, 100),
+    };
+  }).filter((source) => source.name);
+}
+
 function extractVariableName(value) {
-  const text = String(value || "").trim();
+  const text = typeof value === "object" && value ? String(value.name || "") : String(value || "").trim();
   const match = text.match(/[A-Za-z_][A-Za-z0-9_]*/);
   return match ? match[0] : "";
 }
@@ -1354,10 +1414,12 @@ function buildAnnotationPrompt({ context, treeNotes, flowTabs, keyFunctions, sou
    - 优先选择真正改变数据、组装上下文、调用模型、执行工具、处理错误、更新状态的代码段。
 4. 不要把函数里出现过的变量全列出来；只选最多 3 个最能帮助理解数据流的关键变量。
 5. 关键变量必须解释“它是什么、来自哪些输入、如何变成输出/副作用”，不要只写变量名。
-6. 优先解释长期存在或跨步骤传递的数据，例如 messages、kwargs、tool_calls、context、payload；不要选临时循环变量、异常变量、计数器。
-7. 如果源码已有英文 docstring 或注释，请吸收其真实含义，用清楚中文重写，不要造“消费消息”这类含混词。
-8. 不要输出 principle 字段，不要讲抽象原理；只讲读代码时马上有用的数据流。
-9. 不要输出 markdown，不要解释 JSON 之外的内容。
+6. sources 里的每个输入源也必须解释清楚：这个源是什么、当前带着什么信息、为什么会影响目标变量。
+7. 优先解释长期存在或跨步骤传递的数据，例如 messages、kwargs、tool_calls、context、payload；不要选临时循环变量、异常变量、计数器。
+8. 保留这些英文术语，不要硬翻译：agent、skills、memory、prompt、system prompt、tools、MCP、LLM、provider、context、hook、channel、session。
+9. 如果源码已有英文 docstring 或注释，请吸收其真实含义，用清楚中文重写，不要造“添加身份”“添加文件”“消费消息”这类必须靠猜的短语。
+10. 不要输出 principle 字段，不要讲抽象原理；只讲读代码时马上有用的数据流。
+11. 不要输出 markdown，不要解释 JSON 之外的内容。
 
 输出 JSON 形状：
 {
@@ -1371,14 +1433,21 @@ function buildAnnotationPrompt({ context, treeNotes, flowTabs, keyFunctions, sou
           "flows": [
             {
               "name": "关键变量名",
-              "label": "中文说明：它是什么",
-              "before": "进入这段代码前是什么/可能为空",
-              "sources": ["影响它的输入变量名"],
-              "after": "执行后变成什么/包含什么",
-              "effect": "它接下来被谁使用或产生什么效果"
+              "label": "它是什么，以及为什么读者应该关注它",
+              "before": "进入这段代码前它是什么状态/是否为空",
+              "sources": [
+                {
+                  "name": "输入源变量或函数名",
+                  "detail": "这个输入源是什么，里面通常包含什么信息",
+                  "value": "在当前代码段里它贡献了什么具体内容",
+                  "use": "它为什么会影响目标变量"
+                }
+              ],
+              "after": "执行后目标变量包含了哪些具体内容，不要只重复变量名",
+              "effect": "目标变量接下来被谁使用，用来完成什么学习者能理解的任务"
             }
           ],
-          "note": "用一句人话概括这段函数的数据变化"
+          "note": "用一句人话说明这段函数在为 LLM/agent 准备什么信息，以及为什么要这么准备"
         }
       },
       "highlightVariables": ["只高亮 flows 里的关键变量，最多 6 个"],
@@ -1405,7 +1474,7 @@ ${JSON.stringify(snippets, null, 2)}
 
 function mergeSemantics(localNotes, localFlows, functions, raw) {
   const validPaths = new Set(localNotes.map((note) => note.path));
-  const treeNotes = (Array.isArray(raw?.treeNotes) ? raw.treeNotes : [])
+  const rawTreeNotes = (Array.isArray(raw?.treeNotes) ? raw.treeNotes : [])
     .filter((note) => validPaths.has(String(note?.path || "")))
     .slice(0, 180)
     .map((note) => ({
@@ -1414,6 +1483,8 @@ function mergeSemantics(localNotes, localFlows, functions, raw) {
       label: normalizeShortLabel(note.label, inferPathKeyword(note.path), 10),
       importance: note.importance === "core" ? "core" : "normal",
     }));
+  const rawNoteByPath = new Map(rawTreeNotes.map((note) => [`${note.type}:${note.path}`, note]));
+  const treeNotes = localNotes.map((note) => rawNoteByPath.get(`${note.type}:${note.path}`) || note);
 
   const functionById = new Map(functions.map((fn) => [fn.id, fn]));
   for (const item of Array.isArray(raw?.functionLabels) ? raw.functionLabels : []) {
@@ -1426,7 +1497,7 @@ function mergeSemantics(localNotes, localFlows, functions, raw) {
 
   return {
     projectSummary: String(raw?.project?.summary || "nanobot agent 源码学习").slice(0, 140),
-    treeNotes: treeNotes.length ? treeNotes : localNotes,
+    treeNotes,
     flowTabs: sanitizeFlowTabs(raw?.flowTabs, functions).some((tab) => tab.id !== "overview" && tab.cards.length)
       ? sanitizeFlowTabs(raw?.flowTabs, functions)
       : localFlows,
@@ -1434,30 +1505,6 @@ function mergeSemantics(localNotes, localFlows, functions, raw) {
 }
 
 async function analyzeNanobot(input) {
-  if (!input.force) {
-    const cached = await readAnalysisCache(input);
-    if (cached?.result) {
-      const result = structuredClone(cached.result);
-      const logs = Array.isArray(result.logs) ? result.logs : [];
-      logStep(logs, "cache", "Loaded analysis result from disk cache.", {
-        savedAt: cached.savedAt,
-        target: cached.descriptor?.target,
-        model: cached.descriptor?.model,
-        llmEnabled: cached.descriptor?.llmEnabled,
-        repairedFromModelLogs: Boolean(cached.repairedFromModelLogs),
-      });
-      result.logs = logs;
-      result.project = {
-        ...result.project,
-        loadedFromCache: true,
-        cacheSavedAt: cached.savedAt,
-      };
-      lastRunLogs = logs;
-      lastModelLogs = Array.isArray(cached.modelLogs) ? cached.modelLogs : [];
-      return result;
-    }
-  }
-
   const logs = [];
   lastRunLogs = logs;
   lastModelLogs = [];
@@ -1714,7 +1761,6 @@ const server = http.createServer(async (req, res) => {
         model: String(body.model || DEFAULT_MODEL).trim(),
         source: body.source === "local" ? "local" : "github",
         localPath: String(body.localPath || "").trim(),
-        force: Boolean(body.force),
       });
       sendJson(res, 200, result);
       return;

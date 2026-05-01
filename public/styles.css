@@ -61,10 +61,35 @@ input {
   background: var(--panel-bg);
 }
 
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 280px;
+}
+
+.fullscreen-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.fullscreen-button:hover {
+  border-color: rgba(15, 118, 110, 0.35);
+  background: #caebe6;
+}
+
 .brand {
   display: flex;
   flex-direction: column;
-  min-width: 240px;
+  min-width: 0;
 }
 
 .brand strong {
@@ -81,7 +106,7 @@ input {
 
 .settings {
   display: grid;
-  grid-template-columns: minmax(150px, 220px) minmax(180px, 260px) minmax(130px, 190px) minmax(86px, 130px) 88px 64px 64px minmax(160px, 260px) 58px;
+  grid-template-columns: minmax(150px, 220px) minmax(180px, 260px) minmax(130px, 190px) minmax(86px, 130px) 64px 64px minmax(160px, 260px) 58px;
   gap: 8px;
   width: min(1420px, 82vw);
 }
@@ -95,27 +120,6 @@ input {
   padding: 0 10px;
   color: var(--text-main);
   background: #fff;
-}
-
-.settings .force-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-muted);
-  background: #fff;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.settings .force-label input {
-  width: 14px;
-  height: 14px;
-  padding: 0;
 }
 
 .settings button,
@@ -478,12 +482,11 @@ input {
 }
 
 .data-source-group {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
-  max-width: 32%;
+  width: 34%;
 }
 
 .data-node,
@@ -494,6 +497,24 @@ input {
   color: var(--var-text);
   background: var(--var-bg);
   font-weight: 700;
+}
+
+.data-node {
+  display: grid;
+  gap: 2px;
+}
+
+.data-node code {
+  font-family: var(--mono);
+  color: var(--var-text);
+  font-weight: 850;
+}
+
+.data-node small {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .data-node.muted {
@@ -511,7 +532,7 @@ input {
   display: grid;
   gap: 2px;
   min-width: 96px;
-  max-width: 42%;
+  width: 36%;
   padding: 7px 8px;
   border: 1px solid rgba(15, 118, 110, 0.2);
   background: rgba(223, 248, 242, 0.78);
@@ -535,7 +556,7 @@ input {
 }
 
 .data-effect-node {
-  max-width: 34%;
+  width: 28%;
   color: var(--text-main);
   background: #fff7dc;
 }
@@ -602,6 +623,6 @@ input {
   }
 
   .settings {
-    grid-template-columns: 1fr 1fr 120px 90px 84px 60px 60px 1fr 54px;
+    grid-template-columns: 1fr 1fr 120px 90px 60px 60px 1fr 54px;
   }
 }
