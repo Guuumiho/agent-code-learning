@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nanobot Source Atlas</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <strong>Nanobot Source Atlas</strong>
+          <span>HKUDS/nanobot 专用源码学习页</span>
+        </div>
+        <form id="settingsForm" class="settings">
+          <input id="apiKeyInput" type="password" placeholder="LLM API Key（可留空使用本地兜底）" autocomplete="off" />
+          <input id="localPathInput" type="text" placeholder="本地项目路径，例如 D:\code\nanobot" />
+          <input id="baseUrlInput" type="text" value="https://api.openai.com/v1" aria-label="Base URL" />
+          <input id="modelInput" type="text" value="gpt-4.1-mini" aria-label="Model" />
+          <label class="force-label" title="勾选后忽略本地缓存，重新调用 LLM 分析">
+            <input id="forceAnalyzeInput" type="checkbox" />
+            重新分析
+          </label>
+          <button id="analyzeGithubButton" type="submit" data-source="github">GitHub</button>
+          <button id="analyzeLocalButton" type="submit" data-source="local">本地</button>
+          <select id="historySelect" aria-label="历史分析">
+            <option value="">历史分析</option>
+          </select>
+          <button id="loadHistoryButton" type="button">读取</button>
+        </form>
+      </header>
+
+      <main class="workspace">
+        <aside class="project-map" aria-label="项目地图">
+          <div class="panel-head">
+            <span>项目地图</span>
+            <small id="treeMeta">等待分析</small>
+          </div>
+          <div id="treeRoot" class="tree-root"></div>
+        </aside>
+
+        <section class="code-stage" aria-label="源码现场">
+          <div class="code-head">
+            <div>
+              <span id="currentFile">未选择文件</span>
+              <small id="currentFileMeta"></small>
+            </div>
+            <div id="statusText" class="status-text">填写 API Key 后可获得 LLM 注释；留空也可先看本地索引。</div>
+          </div>
+          <div class="code-wrap">
+            <div id="editorRoot" class="editor-root"></div>
+            <div id="plainCodeFallback" class="plain-code hidden"></div>
+            <section id="floatingPanel" class="floating-panel hidden">
+              <div id="floatingDragHandle" class="floating-head">
+                <strong id="floatingTitle">关键函数</strong>
+                <button id="floatingClose" type="button" aria-label="关闭">×</button>
+              </div>
+              <div id="floatingBody" class="floating-body"></div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="flow-panel" aria-label="流程视角">
+          <div class="flow-tabs" id="flowTabs"></div>
+          <div id="flowContent" class="flow-content"></div>
+          <section class="log-panel">
+            <div class="log-head">调用日志</div>
+            <div id="logContent" class="log-content">等待分析</div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

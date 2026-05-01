@@ -1,0 +1,5 @@
+server.out.log
+server.err.log
+.cache/
+AGENT.md
+docs/
