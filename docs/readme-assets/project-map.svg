@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="1060" viewBox="0 0 820 1060" fill="none">
+  <rect width="820" height="1060" rx="22" fill="#FFFFFF"/>
+  <rect x="22" y="22" width="776" height="1016" rx="18" fill="#F8FBFD" stroke="#D8E0EA"/>
+  <text x="54" y="80" fill="#1F2933" font-size="28" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">项目地图</text>
+  <text x="560" y="80" fill="#667085" font-size="20" font-family="Segoe UI, Microsoft YaHei, sans-serif">260 files · 1120 functions</text>
+  <rect x="482" y="112" width="266" height="822" rx="10" fill="none" stroke="#27A3FF" stroke-width="8"/>
+  <text x="388" y="160" fill="#27A3FF" font-size="34" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">速懂文件作用</text>
+  <text x="534" y="174" fill="#667085" font-size="20" font-family="Segoe UI, Microsoft YaHei, sans-serif">说明文档</text>
+  <text x="576" y="248" fill="#667085" font-size="20" font-family="Segoe UI, Microsoft YaHei, sans-serif">主程序</text>
+  <text x="514" y="322" fill="#667085" font-size="20" font-family="Segoe UI, Microsoft YaHei, sans-serif">核心agent逻辑</text>
+  <text x="560" y="396" fill="#667085" font-size="20" font-family="Segoe UI, Microsoft YaHei, sans-serif">工具实现</text>
+  <text x="548" y="470" fill="#667085" font-size="20" font-family="Segoe UI, Microsoft YaHei, sans-serif">上下文构建</text>
+
+  <text x="74" y="158" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif">▸ docs</text>
+  <text x="74" y="236" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif">▾ nanobot</text>
+  <text x="116" y="304" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">▾ agent</text>
+  <text x="154" y="372" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif">▸ tools</text>
+  <text x="154" y="440" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif">▸ autocompact.py</text>
+  <rect x="144" y="482" width="286" height="56" rx="12" fill="#DFF3F0"/>
+  <text x="166" y="518" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">▾ context.py</text>
+
+  <rect x="168" y="564" width="322" height="90" rx="10" fill="none" stroke="#9ACA00" stroke-width="8"/>
+  <text x="74" y="596" fill="#9ACA00" font-size="30" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">关键函数提示</text>
+  <text x="194" y="618" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">ContextBuilder.build_messages</text>
+  <text x="194" y="692" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif">ContextBuilder.build_system_prompt</text>
+  <text x="194" y="744" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif">ContextBuilder.add_tool_result</text>
+
+  <text x="154" y="836" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">▸ loop.py</text>
+  <text x="154" y="904" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">▸ runner.py</text>
+  <text x="154" y="972" fill="#1F2933" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">▸ skills.py</text>
+</svg>

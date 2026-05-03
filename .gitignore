@@ -2,4 +2,5 @@ server.out.log
 server.err.log
 .cache/
 AGENT.md
-docs/
+docs/ARCHITECTURE.md
+docs/STATUS.md

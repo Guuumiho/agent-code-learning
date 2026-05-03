@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="1180" viewBox="0 0 760 1180" fill="none">
+  <rect width="760" height="1180" rx="24" fill="#FFFFFF"/>
+  <rect x="18" y="18" width="724" height="1144" rx="18" fill="#F8FBFD" stroke="#D8E0EA"/>
+  <rect x="28" y="28" width="704" height="136" rx="16" fill="none" stroke="#27A3FF" stroke-width="8"/>
+  <text x="150" y="114" fill="#27A3FF" font-size="36" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">agent基本流程</text>
+  <text x="56" y="86" fill="#0F766E" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">简单问答</text>
+  <text x="250" y="86" fill="#667085" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">上下文</text>
+  <text x="430" y="86" fill="#667085" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">工具调用</text>
+  <text x="594" y="86" fill="#667085" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">MCP调用</text>
+  <text x="56" y="134" fill="#667085" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">记忆系统</text>
+  <text x="262" y="134" fill="#667085" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">skills系统</text>
+  <text x="490" y="134" fill="#667085" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">状态调度</text>
+  <text x="638" y="134" fill="#667085" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">异常兜底</text>
+
+  <rect x="28" y="182" width="704" height="150" rx="16" fill="none" stroke="#91C400" stroke-width="8"/>
+  <text x="100" y="256" fill="#0F766E" font-size="32" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">用户发来一句话后，agent如何组织上下文并得到LLM回复？</text>
+  <text x="272" y="310" fill="#91C400" font-size="34" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">核心作用总结</text>
+
+  <rect x="28" y="362" width="704" height="744" rx="16" fill="none" stroke="#FFB000" stroke-width="8"/>
+  <text x="246" y="868" fill="#FFB000" font-size="34" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">细节点工作流，点击跳转</text>
+
+  <rect x="52" y="392" width="656" height="176" rx="18" fill="#FFFFFF" stroke="#D8E0EA"/>
+  <rect x="76" y="418" width="110" height="34" rx="17" fill="#DFF3F0"/>
+  <text x="92" y="441" fill="#0F766E" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">Harness</text>
+  <text x="208" y="442" fill="#1F2933" font-size="30" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">接收用户消息</text>
+  <text x="76" y="500" fill="#667085" font-size="26" font-family="Segoe UI, Microsoft YaHei, sans-serif">AgentLoop收到消息后，将其包装为InboundMessage，并进入处理流程。</text>
+  <rect x="76" y="534" width="248" height="44" rx="12" fill="#DFF3F0"/>
+  <text x="94" y="563" fill="#0F766E" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">AgentLoop.process_message</text>
+
+  <text x="360" y="618" fill="#667085" font-size="40" font-family="Segoe UI, Microsoft YaHei, sans-serif">↓</text>
+
+  <rect x="52" y="656" width="656" height="226" rx="18" fill="#FFFFFF" stroke="#D8E0EA"/>
+  <rect x="76" y="682" width="110" height="34" rx="17" fill="#DFF3F0"/>
+  <text x="96" y="705" fill="#0F766E" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">Context</text>
+  <text x="208" y="706" fill="#1F2933" font-size="30" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">构建上下文</text>
+  <text x="76" y="764" fill="#667085" font-size="26" font-family="Segoe UI, Microsoft YaHei, sans-serif">ContextBuilder将用户消息、system prompt、memory、skills等信息组装成LLM需要的messages列表。</text>
+  <rect x="76" y="806" width="294" height="44" rx="12" fill="#DFF3F0"/>
+  <rect x="390" y="806" width="280" height="44" rx="12" fill="#DFF3F0"/>
+  <text x="94" y="835" fill="#0F766E" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">ContextBuilder.build_messages</text>
+  <text x="408" y="835" fill="#0F766E" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">ContextBuilder.build_system_prompt</text>
+
+  <text x="360" y="926" fill="#667085" font-size="40" font-family="Segoe UI, Microsoft YaHei, sans-serif">↓</text>
+
+  <rect x="52" y="964" width="656" height="118" rx="18" fill="#FFFFFF" stroke="#D8E0EA"/>
+  <rect x="76" y="990" width="110" height="34" rx="17" fill="#DFF3F0"/>
+  <text x="92" y="1013" fill="#0F766E" font-size="22" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">Harness</text>
+  <text x="208" y="1014" fill="#1F2933" font-size="30" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-weight="700">调用LLM</text>
+  <rect x="76" y="1032" width="286" height="40" rx="12" fill="#DFF3F0"/>
+  <text x="94" y="1058" fill="#0F766E" font-size="24" font-family="Segoe UI, Microsoft YaHei, sans-serif">AgentRunner._request_model</text>
+</svg>
