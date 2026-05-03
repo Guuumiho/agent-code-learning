@@ -1,6 +1,6 @@
 # Agent Code Learning
 
-nanobot源码学习：https://guuumiho.github.io/agent-code-learning/
+nanobot源码学习：https://guuumiho.github.io/agent-code-learning/docs
 
 解决什么：
 
