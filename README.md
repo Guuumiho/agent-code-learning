@@ -1,5 +1,7 @@
 # Agent Code Learning
 
+nanobot源码学习：https://guuumiho.github.io/agent-code-learning/
+
 解决什么：
 
 - 不知道先从哪个文件开始
@@ -80,6 +82,22 @@ http://127.0.0.1:3939
 
 每次分析都会保存快照。  
 之后可以在 `读取存档` 里切回旧结果，不需要重新消耗 token。
+
+### 导出静态网站
+
+把最近一次历史分析导出成可部署的静态网站：
+
+```powershell
+node .\scripts\export-static.js
+```
+
+生成目录：
+
+```text
+dist-site/
+```
+
+把 `dist-site/` 上传到服务器的 Nginx 网站目录即可。
 
 ## 缓存与隐私
 

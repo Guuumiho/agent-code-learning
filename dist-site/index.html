@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nanobot Source Atlas</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div id="statusText" class="top-status">填写 API Key 后可获得 LLM 注释；留空也可先看本地索引。</div>
+        </div>
+        <div class="top-actions">
+          <button id="fullscreenButton" class="top-action-button" type="button" title="全屏阅读" aria-label="全屏阅读">全屏</button>
+          <button id="settingsButton" class="top-action-button" type="button" aria-expanded="true" aria-controls="settingsPopover">设置</button>
+          <section id="settingsPopover" class="settings-popover" aria-label="设置">
+            <div class="settings-head">
+              <strong>设置</strong>
+              <button id="settingsClose" type="button" aria-label="关闭设置">×</button>
+            </div>
+            <form id="settingsForm" class="settings">
+              <div class="settings-group">
+                <h2>LLM 设置</h2>
+                <label>
+                  <span>API URL</span>
+                  <input id="baseUrlInput" type="text" value="https://api.openai.com/v1" aria-label="API URL" />
+                </label>
+                <label>
+                  <span>API Key</span>
+                  <input id="apiKeyInput" type="password" placeholder="可留空使用本地兜底" autocomplete="off" />
+                </label>
+                <label>
+                  <span>Model</span>
+                  <input id="modelInput" type="text" value="gpt-4.1-mini" aria-label="Model" />
+                </label>
+              </div>
+              <div class="settings-group">
+                <h2>项目设置（选择其一即可）</h2>
+                <label>
+                  <span>GitHub 链接</span>
+                  <input id="repoUrlInput" type="text" value="https://github.com/HKUDS/nanobot" aria-label="GitHub 链接" disabled />
+                </label>
+                <label>
+                  <span>本地路径</span>
+                  <input id="localPathInput" type="text" placeholder="例如 D:\code\nanobot" />
+                </label>
+                <div class="settings-actions">
+                  <button id="analyzeGithubButton" type="submit" data-source="github">GitHub</button>
+                  <button id="analyzeLocalButton" type="submit" data-source="local">本地</button>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h2>读取存档</h2>
+                <div class="history-row">
+                  <select id="historySelect" aria-label="历史分析">
+                    <option value="">历史分析</option>
+                  </select>
+                  <button id="loadHistoryButton" type="button">读取</button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="project-map" aria-label="项目地图">
+          <div class="panel-head">
+            <span>项目地图</span>
+            <small id="treeMeta">等待分析</small>
+          </div>
+          <div id="treeRoot" class="tree-root"></div>
+        </aside>
+
+        <section class="code-stage" aria-label="源码现场">
+          <span id="currentFile" class="hidden">未选择文件</span>
+          <small id="currentFileMeta" class="hidden"></small>
+          <div class="code-wrap">
+            <div id="editorRoot" class="editor-root"></div>
+            <div id="plainCodeFallback" class="plain-code hidden"></div>
+            <section id="floatingPanel" class="floating-panel hidden">
+              <div id="floatingDragHandle" class="floating-head">
+                <strong id="floatingTitle">关键函数</strong>
+                <button id="floatingClose" type="button" aria-label="关闭">×</button>
+              </div>
+              <div id="floatingBody" class="floating-body"></div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="flow-panel" aria-label="流程视角">
+          <div class="flow-tabs" id="flowTabs"></div>
+          <div id="flowContent" class="flow-content"></div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+    <script src="static-analysis.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
