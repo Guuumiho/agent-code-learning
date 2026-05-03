@@ -638,6 +638,16 @@ select {
   border: 1px solid rgba(15, 118, 110, 0.16);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.scenario-step:hover,
+.scenario-step:focus-visible {
+  border-color: rgba(15, 118, 110, 0.32);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.08);
+  transform: translateY(-1px);
+  outline: none;
 }
 
 .scenario-step header {

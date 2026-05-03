@@ -14,8 +14,8 @@
         </div>
         <div class="top-actions">
           <button id="fullscreenButton" class="top-action-button" type="button" title="全屏阅读" aria-label="全屏阅读">全屏</button>
-          <button id="settingsButton" class="top-action-button" type="button" aria-expanded="false" aria-controls="settingsPopover">设置</button>
-          <section id="settingsPopover" class="settings-popover hidden" aria-label="设置">
+          <button id="settingsButton" class="top-action-button" type="button" aria-expanded="true" aria-controls="settingsPopover">设置</button>
+          <section id="settingsPopover" class="settings-popover" aria-label="设置">
             <div class="settings-head">
               <strong>设置</strong>
               <button id="settingsClose" type="button" aria-label="关闭设置">×</button>
@@ -37,7 +37,7 @@
                 </label>
               </div>
               <div class="settings-group">
-                <h2>项目设置</h2>
+                <h2>项目设置（选择其一即可）</h2>
                 <label>
                   <span>GitHub 链接</span>
                   <input id="repoUrlInput" type="text" value="https://github.com/HKUDS/nanobot" aria-label="GitHub 链接" disabled />

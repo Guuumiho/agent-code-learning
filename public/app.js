@@ -57,6 +57,7 @@ let selectedFlowTab = "prompt";
 let activeAnnotation = null;
 let decorationIds = [];
 let jumpDecorationIds = [];
+let jumpRangeDecorationIds = [];
 let focusedDecorationIds = [];
 let viewZoneIds = [];
 let floatingPosition = null;
@@ -499,6 +500,13 @@ function jumpToLine(line, flashName) {
   }
 }
 
+function jumpToScenarioRange(startLine) {
+  if (!editor || !monacoApi || !startLine) return;
+  const safeStart = Number(startLine);
+  editor.revealLineNearTop(safeStart, monacoApi.editor.ScrollType.Smooth);
+  editor.setPosition({ lineNumber: safeStart, column: 1 });
+}
+
 function flashFunctionName(line, name) {
   if (!editor || !monacoApi || !name) return;
   const model = editor.getModel();
@@ -613,9 +621,14 @@ function renderFloatingPanel() {
     floatingPanel.style.top = `${floatingPosition.top}px`;
     floatingPanel.style.right = "auto";
   } else {
-    floatingPanel.style.left = "auto";
-    floatingPanel.style.right = "24px";
-    floatingPanel.style.top = "50%";
+    const codeRect = editorRoot.getBoundingClientRect();
+    const panelWidth = floatingPanel.offsetWidth || 300;
+    const panelHeight = floatingPanel.offsetHeight || 260;
+    const left = Math.max(0, codeRect.right - panelWidth - 16);
+    const top = Math.max(0, codeRect.top + Math.max(12, (codeRect.height - panelHeight) / 2));
+    floatingPanel.style.left = `${left}px`;
+    floatingPanel.style.top = `${top}px`;
+    floatingPanel.style.right = "auto";
   }
 }
 
@@ -642,7 +655,14 @@ function renderScenarioFlow(annotation) {
 
 function renderScenarioStep(step, index) {
   return `
-    <article class="scenario-step">
+    <article
+      class="scenario-step"
+      data-start-line="${escapeHtml(String(step.startLine || ""))}"
+      data-end-line="${escapeHtml(String(step.endLine || ""))}"
+      role="button"
+      tabindex="0"
+      aria-label="${escapeHtml(`跳转到步骤 ${index + 1}`)}"
+    >
       <header>
         <span>${index + 1}</span>
         <strong>${escapeHtml(step.title || "步骤")}</strong>
@@ -988,6 +1008,22 @@ function escapeRegExp(value) {
 
 function setupFloatingPanel() {
   floatingClose.addEventListener("click", hideFloatingPanel);
+  floatingBody.addEventListener("click", (event) => {
+    const stepNode = event.target.closest(".scenario-step");
+    if (!stepNode) return;
+    const startLine = Number(stepNode.dataset.startLine || 0);
+    if (!startLine) return;
+    jumpToScenarioRange(startLine);
+  });
+  floatingBody.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const stepNode = event.target.closest(".scenario-step");
+    if (!stepNode) return;
+    const startLine = Number(stepNode.dataset.startLine || 0);
+    if (!startLine) return;
+    event.preventDefault();
+    jumpToScenarioRange(startLine);
+  });
   floatingDragHandle.addEventListener("mousedown", (event) => {
     const panelRect = floatingPanel.getBoundingClientRect();
     const left = panelRect.left;

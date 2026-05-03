@@ -1,40 +1,93 @@
-# Nanobot Source Atlas
+# Agent Code Learning
 
-Nanobot Source Atlas 是一个本地只读源码学习页面，当前主要用于阅读和理解 [HKUDS/nanobot](https://github.com/HKUDS/nanobot)。
+解决什么：
 
-三栏源码阅读工作台：
+不知道先从哪个文件开始
+不知道某个文件夹、文件、函数主要负责什么
+不知道一段代码属于哪个 agent 功能
+不知道跨文件流程怎么串起来
+不知道“agent 是怎么跑起来的”，只能盯着实现细节发懵
 
-- 左侧：项目地图，展示目录、文件、函数、极短说明和重要项。
-- 中间：只读 Monaco 源码区，展示关键函数底色、关键代码块说明、变量高亮和可拖动解释浮窗。
-- 右侧：Prompt / Context / Harness 流程视角，把 agent 构建概念关联到真实函数。
 
-##双击运行
+![三栏总览](docs/readme-assets/workspace-overview.svg)
 
-```start.bat
+
+### 左侧：项目地图
+
+- 文件夹、文件、函数都有极短说明
+- 重要函数会被突出
+- 点击函数直接跳源码
+
+![项目地图](docs/readme-assets/project-map.svg)
+
+### 中间：源码现场
+
+- 展示真实源码
+- 标出关键函数和关键代码块
+- 悬浮板解释这段代码在当前 agent 流程里扮演什么角色
+
+![源码与悬浮板](docs/readme-assets/code-annotation.svg)
+
+### 右侧：agent 基础知识
+
+当前用 8 条场景来组织学习路径：
+
+- 简单问答
+- 上下文
+- 工具调用
+- MCP调用
+- 记忆系统
+- skills系统
+- 状态调度
+- 异常兜底
+
+每一步里的函数名都可以点回源码。
+
+![旅程视角](docs/readme-assets/journey-panel.svg)
+
+## 怎么用
+
+### 启动
+
+双击：
+
+```bat
+start.bat
 ```
 
-## 使用方式
+或手动运行：
 
-点击 `GitHub` 分析公开的 nanobot 仓库。
-点击 `本地` 分析本地项目路径。
-使用 `历史分析` 和 `读取` 查看之前保存过的分析结果，不会再次消耗 token。
-左上角 `⛶`  ，全屏阅读。
-
-不填写 API Key 时，系统仍会基于仓库事实、目录结构、Python 函数索引和本地规则生成兜底视图。填写 API Key 后，会额外调用 LLM 生成目录说明、流程卡片和关键代码注释。
-
-当 GitHub 匿名请求触发 rate limit 时，建议把源码手动下载到本地，再用 `本地` 模式分析。
+```powershell
+node .\server.js
 ```
 
-## 隐私与缓存
+打开：
 
-分析结果保存在 `.cache/source-atlas/`，其中包含生成后的源码学习数据和 LLM 调用审计日志。
+```text
+http://127.0.0.1:3939
+```
 
-不会保存或上传 API Key。浏览器本地设置也不会持久化 API Key。
+### 分析方式
 
-每次点击 `GitHub` 或 `本地` 都会开始一次新的分析，并写入一条历史快照。之后可以通过 `历史分析` 下拉框切换到旧结果。
+首次打开时，右上角 `设置` 默认展开。
 
+你可以二选一：
 
-## 说明
+- `GitHub`：直接分析公开仓库
+- `本地`：分析你本机已下载的源码
 
-- Monaco Editor 通过 CDN 加载，用作只读源码展示组件。
-- `.cache/`、运行日志、维护文档不会被提交到 GitHub。
+### 历史分析
+
+每次分析都会保存快照。  
+之后可以在 `读取存档` 里切回旧结果，不需要重新消耗 token。
+
+## 缓存与隐私
+
+缓存目录：
+
+```text
+.cache/source-atlas/
+```
+
+不会保存 API Key。
+
