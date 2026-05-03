@@ -10,24 +10,59 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="brand-wrap">
-          <button id="fullscreenButton" class="fullscreen-button" type="button" title="全屏阅读" aria-label="全屏阅读">⛶</button>
-          <div class="brand">
-            <strong>Nanobot Source Atlas</strong>
-            <span>HKUDS/nanobot 专用源码学习页</span>
-          </div>
+          <div id="statusText" class="top-status">填写 API Key 后可获得 LLM 注释；留空也可先看本地索引。</div>
         </div>
-        <form id="settingsForm" class="settings">
-          <input id="apiKeyInput" type="password" placeholder="LLM API Key（可留空使用本地兜底）" autocomplete="off" />
-          <input id="localPathInput" type="text" placeholder="本地项目路径，例如 D:\code\nanobot" />
-          <input id="baseUrlInput" type="text" value="https://api.openai.com/v1" aria-label="Base URL" />
-          <input id="modelInput" type="text" value="gpt-4.1-mini" aria-label="Model" />
-          <button id="analyzeGithubButton" type="submit" data-source="github">GitHub</button>
-          <button id="analyzeLocalButton" type="submit" data-source="local">本地</button>
-          <select id="historySelect" aria-label="历史分析">
-            <option value="">历史分析</option>
-          </select>
-          <button id="loadHistoryButton" type="button">读取</button>
-        </form>
+        <div class="top-actions">
+          <button id="fullscreenButton" class="top-action-button" type="button" title="全屏阅读" aria-label="全屏阅读">全屏</button>
+          <button id="settingsButton" class="top-action-button" type="button" aria-expanded="false" aria-controls="settingsPopover">设置</button>
+          <section id="settingsPopover" class="settings-popover hidden" aria-label="设置">
+            <div class="settings-head">
+              <strong>设置</strong>
+              <button id="settingsClose" type="button" aria-label="关闭设置">×</button>
+            </div>
+            <form id="settingsForm" class="settings">
+              <div class="settings-group">
+                <h2>LLM 设置</h2>
+                <label>
+                  <span>API URL</span>
+                  <input id="baseUrlInput" type="text" value="https://api.openai.com/v1" aria-label="API URL" />
+                </label>
+                <label>
+                  <span>API Key</span>
+                  <input id="apiKeyInput" type="password" placeholder="可留空使用本地兜底" autocomplete="off" />
+                </label>
+                <label>
+                  <span>Model</span>
+                  <input id="modelInput" type="text" value="gpt-4.1-mini" aria-label="Model" />
+                </label>
+              </div>
+              <div class="settings-group">
+                <h2>项目设置</h2>
+                <label>
+                  <span>GitHub 链接</span>
+                  <input id="repoUrlInput" type="text" value="https://github.com/HKUDS/nanobot" aria-label="GitHub 链接" disabled />
+                </label>
+                <label>
+                  <span>本地路径</span>
+                  <input id="localPathInput" type="text" placeholder="例如 D:\code\nanobot" />
+                </label>
+                <div class="settings-actions">
+                  <button id="analyzeGithubButton" type="submit" data-source="github">GitHub</button>
+                  <button id="analyzeLocalButton" type="submit" data-source="local">本地</button>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h2>读取存档</h2>
+                <div class="history-row">
+                  <select id="historySelect" aria-label="历史分析">
+                    <option value="">历史分析</option>
+                  </select>
+                  <button id="loadHistoryButton" type="button">读取</button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
       </header>
 
       <main class="workspace">
@@ -40,13 +75,8 @@
         </aside>
 
         <section class="code-stage" aria-label="源码现场">
-          <div class="code-head">
-            <div>
-              <span id="currentFile">未选择文件</span>
-              <small id="currentFileMeta"></small>
-            </div>
-            <div id="statusText" class="status-text">填写 API Key 后可获得 LLM 注释；留空也可先看本地索引。</div>
-          </div>
+          <span id="currentFile" class="hidden">未选择文件</span>
+          <small id="currentFileMeta" class="hidden"></small>
           <div class="code-wrap">
             <div id="editorRoot" class="editor-root"></div>
             <div id="plainCodeFallback" class="plain-code hidden"></div>
@@ -63,10 +93,6 @@
         <aside class="flow-panel" aria-label="流程视角">
           <div class="flow-tabs" id="flowTabs"></div>
           <div id="flowContent" class="flow-content"></div>
-          <section class="log-panel">
-            <div class="log-head">调用日志</div>
-            <div id="logContent" class="log-content">等待分析</div>
-          </section>
         </aside>
       </main>
     </div>

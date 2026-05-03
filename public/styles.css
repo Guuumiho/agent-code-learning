@@ -37,7 +37,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -65,61 +66,126 @@ input {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 280px;
-}
-
-.fullscreen-button {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  cursor: pointer;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.fullscreen-button:hover {
-  border-color: rgba(15, 118, 110, 0.35);
-  background: #caebe6;
-}
-
-.brand {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
 
-.brand strong {
-  font-size: 15px;
+.top-status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
-.brand span,
 .panel-head small,
-.status-text,
 .current-file-meta {
   color: var(--text-muted);
   font-size: 12px;
 }
 
+.top-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.top-action-button {
+  height: 34px;
+  min-width: 64px;
+  border: 1px solid rgba(15, 118, 110, 0.24);
+  border-radius: 7px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.top-action-button:hover {
+  background: #caebe6;
+}
+
+.settings-popover {
+  position: absolute;
+  z-index: 150;
+  top: 44px;
+  right: 0;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 72px);
+  overflow: auto;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  scrollbar-width: none;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 14px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-head button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+}
+
 .settings {
   display: grid;
-  grid-template-columns: minmax(150px, 220px) minmax(180px, 260px) minmax(130px, 190px) minmax(86px, 130px) 64px 64px minmax(160px, 260px) 58px;
-  gap: 8px;
-  width: min(1420px, 82vw);
+  gap: 14px;
+  padding: 14px;
+}
+
+.settings-group {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-group h2 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.settings label {
+  display: grid;
+  gap: 5px;
+}
+
+.settings label span {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .settings input,
 .settings select {
   height: 34px;
+  width: 100%;
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0 10px;
   color: var(--text-main);
   background: #fff;
+}
+
+.settings input:disabled {
+  color: var(--text-muted);
+  background: #f8fafc;
 }
 
 .settings button,
@@ -131,6 +197,7 @@ input {
 }
 
 .settings button {
+  height: 34px;
   color: #fff;
   background: var(--accent);
   font-weight: 650;
@@ -146,16 +213,25 @@ input {
   opacity: 0.6;
 }
 
+.settings-actions,
+.history-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .workspace {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 340px;
+  grid-template-columns: 300px minmax(0, 1fr) minmax(300px, 340px);
   min-height: 0;
+  min-width: 0;
 }
 
 .project-map,
 .flow-panel,
 .code-stage {
   min-height: 0;
+  min-width: 0;
   background: var(--panel-bg);
 }
 
@@ -165,12 +241,13 @@ input {
 }
 
 .flow-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   border-left: 1px solid var(--border);
   overflow: hidden;
 }
 
-.panel-head,
-.code-head {
+.panel-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -181,8 +258,7 @@ input {
   background: #fff;
 }
 
-.panel-head span,
-.code-head span {
+.panel-head span {
   font-weight: 700;
 }
 
@@ -264,16 +340,7 @@ input {
 
 .code-stage {
   display: grid;
-  grid-template-rows: 44px minmax(0, 1fr);
-}
-
-.code-head {
-  padding-left: 14px;
-}
-
-.code-head > div:first-child {
-  display: flex;
-  flex-direction: column;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .code-wrap {
@@ -299,16 +366,20 @@ input {
 
 .flow-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border);
 }
 
 .flow-tabs button {
-  height: 32px;
+  min-height: 36px;
+  padding: 5px 6px;
   color: var(--text-muted);
   background: transparent;
+  white-space: normal;
+  line-height: 1.15;
+  font-size: 13px;
 }
 
 .flow-tabs button.active {
@@ -318,37 +389,9 @@ input {
 }
 
 .flow-content {
-  height: calc(100vh - 292px);
+  min-height: 0;
   overflow: auto;
   padding: 12px;
-}
-
-.log-panel {
-  height: 192px;
-  border-top: 1px solid var(--border);
-  background: #fff;
-}
-
-.log-head {
-  height: 32px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  color: var(--text-main);
-  font-size: 13px;
-  font-weight: 750;
-  border-bottom: 1px solid var(--border);
-}
-
-.log-content {
-  height: 160px;
-  overflow: auto;
-  padding: 8px 10px;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--text-muted);
-  white-space: pre-wrap;
 }
 
 .flow-empty {
@@ -386,6 +429,74 @@ input {
   line-height: 1.5;
 }
 
+.journey-intro {
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(223, 243, 240, 0.88), rgba(255, 248, 230, 0.62));
+}
+
+.journey-intro h3 {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.journey-intro p {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.journey-hint {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.journey-step-card {
+  background: #fff;
+}
+
+.journey-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.journey-step-head h3 {
+  margin: 0;
+}
+
+.layer-pill {
+  flex: none;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--text-main);
+  background: #eef2f7;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.layer-pill.prompt {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.layer-pill.context {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.layer-pill.harness {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .flow-functions {
   display: flex;
   flex-wrap: wrap;
@@ -407,7 +518,7 @@ input {
   z-index: 100;
   top: 50%;
   right: 24px;
-  width: 380px;
+  width: 300px;
   min-height: 220px;
   max-height: 420px;
   overflow: hidden;
@@ -451,6 +562,12 @@ input {
   color: var(--text-main);
   font-size: 13px;
   line-height: 1.6;
+  scrollbar-width: none;
+}
+
+.floating-body::-webkit-scrollbar,
+.settings-popover::-webkit-scrollbar {
+  display: none;
 }
 
 .flow-note {
@@ -465,6 +582,21 @@ input {
 .scenario-flow {
   display: grid;
   gap: 10px;
+}
+
+.scenario-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scenario-meta span {
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .scenario-card {
@@ -689,20 +821,26 @@ input {
 }
 
 .monaco-editor .key-function-line {
-  background: var(--key-bg) !important;
-  box-shadow: inset 3px 0 0 var(--key-border);
+  background: transparent !important;
+  box-shadow: none;
 }
 
 .monaco-editor .anchor-line {
-  background: var(--anchor-bg) !important;
-  box-shadow: inset 3px 0 0 var(--anchor-border);
+  background: transparent !important;
+  box-shadow: none;
 }
 
-.monaco-editor .var-token {
+.monaco-editor .var-token,
+.monaco-editor .key-function-name-token {
   color: var(--var-text) !important;
   background: var(--var-bg);
   border-radius: 3px;
   font-weight: 800;
+}
+
+.monaco-editor .focused-function-line {
+  background: var(--key-bg) !important;
+  box-shadow: inset 3px 0 0 var(--key-border);
 }
 
 .monaco-editor .jump-token {
@@ -723,7 +861,7 @@ input {
   height: 100%;
   padding-left: 18px;
   color: var(--anchor-label-text);
-  background: var(--anchor-label-bg);
+  background: #fff;
   border-left: 2px solid var(--anchor-border);
   font-size: 12px;
 }

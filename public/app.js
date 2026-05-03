@@ -8,6 +8,9 @@ const modelInput = document.getElementById("modelInput");
 const historySelect = document.getElementById("historySelect");
 const loadHistoryButton = document.getElementById("loadHistoryButton");
 const fullscreenButton = document.getElementById("fullscreenButton");
+const settingsButton = document.getElementById("settingsButton");
+const settingsPopover = document.getElementById("settingsPopover");
+const settingsClose = document.getElementById("settingsClose");
 const treeRoot = document.getElementById("treeRoot");
 const treeMeta = document.getElementById("treeMeta");
 const statusText = document.getElementById("statusText");
@@ -25,6 +28,26 @@ const floatingDragHandle = document.getElementById("floatingDragHandle");
 const floatingClose = document.getElementById("floatingClose");
 
 const STORAGE_KEY = "nanobot-source-atlas-settings";
+const JOURNEY_ORDER = [
+  "simple-qa",
+  "context-assembly",
+  "tool-calling",
+  "mcp-calling",
+  "memory-system",
+  "skills-loading",
+  "state-scheduling",
+  "fallback",
+];
+const JOURNEY_LABELS = {
+  "simple-qa": "简单问答",
+  "context-assembly": "上下文",
+  "tool-calling": "工具调用",
+  "mcp-calling": "MCP调用",
+  "memory-system": "记忆系统",
+  "skills-loading": "skills系统",
+  "state-scheduling": "状态调度",
+  fallback: "异常兜底",
+};
 let appData = null;
 let editor = null;
 let monacoApi = null;
@@ -34,9 +57,11 @@ let selectedFlowTab = "prompt";
 let activeAnnotation = null;
 let decorationIds = [];
 let jumpDecorationIds = [];
+let focusedDecorationIds = [];
 let viewZoneIds = [];
 let floatingPosition = null;
 let dragState = null;
+let focusedFunctionId = null;
 const fileContentCache = new Map();
 const expandedDirs = new Set();
 const expandedFiles = new Set();
@@ -88,9 +113,18 @@ async function toggleFullscreen() {
 
 function syncFullscreenButton() {
   const active = Boolean(document.fullscreenElement);
-  fullscreenButton.textContent = active ? "×" : "⛶";
+  fullscreenButton.textContent = active ? "退出" : "全屏";
   fullscreenButton.title = active ? "退出全屏" : "全屏阅读";
   fullscreenButton.setAttribute("aria-label", active ? "退出全屏" : "全屏阅读");
+}
+
+function setSettingsOpen(open) {
+  settingsPopover.classList.toggle("hidden", !open);
+  settingsButton.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function toggleSettings() {
+  setSettingsOpen(settingsPopover.classList.contains("hidden"));
 }
 
 function formatHistoryTime(value) {
@@ -140,6 +174,7 @@ async function loadSelectedHistory() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "读取历史失败");
     await applyAnalysisData(data, "读取历史完成");
+    setSettingsOpen(false);
   } catch (error) {
     setStatus(error.message || "读取历史失败");
   } finally {
@@ -413,38 +448,23 @@ function applyDecorations() {
   }
 
   for (const annotation of annotationsForCurrentFile()) {
-    for (let line = annotation.functionRange.startLine; line <= annotation.functionRange.endLine; line += 1) {
-      decorations.push({
-        range: new monacoApi.Range(line, 1, line, 1),
-        options: { isWholeLine: true, className: "key-function-line" },
-      });
-    }
-
-    for (const block of annotation.blocks || []) {
-      for (let line = block.startLine; line <= block.endLine; line += 1) {
+    const fn = functionById(annotation.functionId);
+    const fnName = fn?.name || fn?.fullName?.split(".").pop();
+    const line = fn?.startLine || annotation.functionRange.startLine;
+    if (fnName) {
+      const text = model.getLineContent(line);
+      const index = text.indexOf(fnName);
+      if (index >= 0) {
         decorations.push({
-          range: new monacoApi.Range(line, 1, line, 1),
-          options: { isWholeLine: true, className: "anchor-line" },
+          range: new monacoApi.Range(line, index + 1, line, index + fnName.length + 1),
+          options: { inlineClassName: "key-function-name-token" },
         });
-      }
-    }
-
-    for (const variable of annotation.highlightVariables || []) {
-      const regex = new RegExp(`\\b${escapeRegExp(variable)}\\b`, "g");
-      for (let line = annotation.functionRange.startLine; line <= annotation.functionRange.endLine; line += 1) {
-        const text = model.getLineContent(line);
-        let match;
-        while ((match = regex.exec(text))) {
-          decorations.push({
-            range: new monacoApi.Range(line, match.index + 1, line, match.index + variable.length + 1),
-            options: { inlineClassName: "var-token" },
-          });
-        }
       }
     }
   }
 
   decorationIds = editor.deltaDecorations(decorationIds, decorations);
+  applyFocusedFunctionDecoration();
   applyViewZones();
   updateFloatingPanelFromViewport();
 }
@@ -504,12 +524,49 @@ async function jumpToFunctionDefinition(functionId) {
 async function jumpToFlowFunction(flowFn) {
   const fn = functionById(flowFn.functionId);
   if (!fn) return;
-  await openFile(fn.file, { line: fn.startLine, flashName: fn.name, expandFunctions: true });
+  focusedFunctionId = fn.id;
+  await openFile(fn.file, { line: fn.startLine, expandFunctions: true });
   const annotation = annotationForFunction(fn.id);
+  applyFocusedFunctionDecoration();
   if (annotation) {
     activeAnnotation = annotation;
     renderFloatingPanel();
   }
+}
+
+function applyFocusedFunctionDecoration() {
+  if (!editor || !monacoApi || !focusedFunctionId) {
+    if (editor) focusedDecorationIds = editor.deltaDecorations(focusedDecorationIds, []);
+    return;
+  }
+  const fn = functionById(focusedFunctionId);
+  if (!fn || fn.file !== currentPath) {
+    focusedDecorationIds = editor.deltaDecorations(focusedDecorationIds, []);
+    return;
+  }
+  const annotation = annotationForFunction(fn.id);
+  const model = editor.getModel();
+  const startLine = annotation?.functionRange?.startLine || fn.startLine;
+  const endLine = annotation?.functionRange?.endLine || fn.endLine || fn.startLine;
+  const name = fn.name || fn.fullName?.split(".").pop();
+  const decorations = [];
+  for (let line = startLine; line <= endLine; line += 1) {
+    decorations.push({
+      range: new monacoApi.Range(line, 1, line, 1),
+      options: { isWholeLine: true, className: "focused-function-line" },
+    });
+  }
+  if (name) {
+    const text = model.getLineContent(fn.startLine);
+    const index = text.indexOf(name);
+    if (index >= 0) {
+      decorations.push({
+        range: new monacoApi.Range(fn.startLine, index + 1, fn.startLine, index + name.length + 1),
+        options: { inlineClassName: "jump-token" },
+      });
+    }
+  }
+  focusedDecorationIds = editor.deltaDecorations(focusedDecorationIds, decorations);
 }
 
 function updateFloatingPanelFromViewport() {
@@ -672,6 +729,10 @@ function renderPills(items = []) {
 }
 
 function renderFlows() {
+  if (Array.isArray(appData?.functions) && appData.functions.length) {
+    renderAgentJourneys();
+    return;
+  }
   const tabs = appData?.flowTabs || [];
   flowTabsRoot.innerHTML = "";
   for (const tab of tabs) {
@@ -713,7 +774,119 @@ function renderFlows() {
   });
 }
 
+function renderAgentJourneys() {
+  const journeys = completeJourneys(appData?.agentJourneys || []);
+  if (!journeys.length) {
+    flowTabsRoot.innerHTML = "";
+    flowContent.innerHTML = "<div class=\"flow-empty\">暂无 agent 旅程</div>";
+    return;
+  }
+  if (!journeys.some((journey) => journey.id === selectedFlowTab)) {
+    selectedFlowTab = journeys[0].id;
+  }
+  flowTabsRoot.innerHTML = "";
+  for (const journey of journeys) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = journey.id === selectedFlowTab ? "active" : "";
+    button.textContent = journeyTabLabel(journey);
+    button.addEventListener("click", () => {
+      selectedFlowTab = journey.id;
+      renderFlows();
+    });
+    flowTabsRoot.appendChild(button);
+  }
+
+  const journey = journeys.find((item) => item.id === selectedFlowTab) || journeys[0];
+  const fallbackHint = journey.source === "local-fallback"
+    ? "<div class=\"journey-hint\">本地规则推断，等待 LLM 补充源码证据</div>"
+    : "";
+  flowContent.innerHTML = `
+    <section class="journey-intro">
+      <h3>${escapeHtml(journey.question || journey.title)}</h3>
+      <p>${escapeHtml(journey.mentalModel || "这条旅程等待 LLM 补充机制说明。")}</p>
+      ${fallbackHint}
+    </section>
+    ${(journey.steps || []).map((step, index) => `
+      <article class="flow-card journey-step-card">
+        <div class="journey-step-head">
+          <span class="layer-pill ${escapeHtml(step.layer || "harness")}">${escapeHtml(layerName(step.layer))}</span>
+          <h3>${escapeHtml(step.title || "机制步骤")}</h3>
+        </div>
+        <p>${escapeHtml(step.explain || "等待 LLM 补充这一步的 agent 机制说明。")}</p>
+        <div class="flow-functions">
+          ${(step.functionIds || []).map((functionId) => {
+            const fn = functionById(functionId);
+            return fn ? `<button type="button" data-function-id="${escapeHtml(functionId)}">${escapeHtml(fn.fullName)}</button>` : "";
+          }).join("")}
+        </div>
+        ${!(step.functionIds || []).length ? "<div class=\"journey-hint\">暂无可靠源码证据</div>" : ""}
+      </article>
+      ${index < (journey.steps || []).length - 1 ? "<div class=\"flow-arrow\">↓</div>" : ""}
+    `).join("")}
+  `;
+  flowContent.querySelectorAll("[data-function-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      jumpToFlowFunction({ functionId: button.dataset.functionId });
+    });
+  });
+}
+
+function completeJourneys(journeys) {
+  const byKey = new Map();
+  for (const journey of journeys || []) {
+    const key = canonicalJourneyKey(journey);
+    if (key && !byKey.has(key)) {
+      byKey.set(key, { ...journey, id: key, title: JOURNEY_LABELS[key] });
+    }
+  }
+  return JOURNEY_ORDER.map((key) => byKey.get(key) || {
+    id: key,
+    title: JOURNEY_LABELS[key],
+    source: "local-fallback",
+    question: `${JOURNEY_LABELS[key]}：等待新分析补充机制说明`,
+    mentalModel: "旧存档缺少这条 agent 旅程。重新分析后会补齐源码证据。",
+    steps: [],
+  });
+}
+
+function canonicalJourneyKey(journey) {
+  const id = String(journey?.id || "").toLowerCase();
+  const title = String(journey?.title || "").toLowerCase();
+  const text = `${id} ${title}`;
+  if (/simple|qa|问答|聊天|回复/.test(text)) return "simple-qa";
+  if (/context|上下文|history|retrieval|compression|装配/.test(text)) return "context-assembly";
+  if (/tool-calling|工具调用|tool call/.test(text)) return "tool-calling";
+  if (/mcp/.test(text)) return "mcp-calling";
+  if (/memory|记忆/.test(text)) return "memory-system";
+  if (/skills?|技能/.test(text)) return "skills-loading";
+  if (/state|schedule|subagent|loop|bus|状态|调度|会话|消息总线/.test(text)) return "state-scheduling";
+  if (/fallback|retry|异常|兜底|恢复|重试/.test(text)) return "fallback";
+  return "";
+}
+
+function journeyTabLabel(journey) {
+  const id = String(journey?.id || "");
+  const title = String(journey?.title || "");
+  if (JOURNEY_LABELS[id]) return JOURNEY_LABELS[id];
+  return title
+    .replace("上下文装配", "上下文")
+    .replace("memory 系统", "记忆系统")
+    .replace("memory系统", "记忆系统")
+    .replace("状态与调度", "状态调度")
+    .slice(0, 6);
+}
+
+function layerName(layer) {
+  if (layer === "prompt") return "Prompt";
+  if (layer === "context") return "Context";
+  return "Harness";
+}
+
 function renderLogs() {
+  if (!logContent) {
+    return;
+  }
   if (!appData?.logs?.length) {
     logContent.textContent = "暂无调用日志";
     return;
@@ -737,6 +910,8 @@ async function applyAnalysisData(data, statusPrefix = "") {
   expandedFiles.clear();
   hideFloatingPanel();
   activeAnnotation = null;
+  focusedFunctionId = null;
+  if (editor) focusedDecorationIds = editor.deltaDecorations(focusedDecorationIds, []);
   currentPath = null;
   selectedFilePath = null;
   for (const file of appData.files || []) {
@@ -789,6 +964,7 @@ async function analyze(event) {
     }
     await applyAnalysisData(data);
     await loadHistoryList();
+    setSettingsOpen(false);
   } catch (error) {
     setStatus(error.message || "分析失败");
   } finally {
@@ -852,6 +1028,16 @@ function setupFloatingPanel() {
 loadSettings();
 setupFloatingPanel();
 settingsForm.addEventListener("submit", analyze);
+settingsButton.addEventListener("click", toggleSettings);
+settingsClose.addEventListener("click", () => setSettingsOpen(false));
+document.addEventListener("mousedown", (event) => {
+  if (settingsPopover.classList.contains("hidden")) return;
+  if (settingsPopover.contains(event.target) || settingsButton.contains(event.target)) return;
+  setSettingsOpen(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setSettingsOpen(false);
+});
 loadHistoryButton.addEventListener("click", loadSelectedHistory);
 historySelect.addEventListener("focus", loadHistoryList);
 historySelect.addEventListener("click", loadHistoryList);

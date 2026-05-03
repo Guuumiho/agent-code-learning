@@ -8,7 +8,7 @@ const HOST = "127.0.0.1";
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3939;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const CACHE_DIR = path.join(__dirname, ".cache", "source-atlas");
-const CACHE_SCHEMA_VERSION = "v2-mvp-cache-8";
+const CACHE_SCHEMA_VERSION = "v2-mvp-cache-10";
 const CACHE_COMPATIBLE_SCHEMAS = new Set([CACHE_SCHEMA_VERSION]);
 const NANOBOT_OWNER = "HKUDS";
 const NANOBOT_REPO = "nanobot";
@@ -993,11 +993,150 @@ function flowFunctionIds(flowTabs) {
   return ids;
 }
 
-function localAnnotations(functions, flowTabs) {
-  const ids = flowFunctionIds(flowTabs);
+function agentJourneyFunctionIds(agentJourneys) {
+  const ids = new Set();
+  for (const journey of agentJourneys || []) {
+    for (const step of journey.steps || []) {
+      for (const id of step.functionIds || []) {
+        ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
+function localAgentJourneys(functions) {
+  const find = (patterns, limit = 3) => functions
+    .map((fn) => {
+      const haystack = `${fn.file}/${fn.fullName}`.toLowerCase();
+      const score = patterns.reduce((sum, pattern) => sum + (pattern.test(haystack) ? 10 : 0), 0)
+        + (fn.file.startsWith("nanobot/") ? 2 : 0)
+        + (fn.callSites?.length ? 1 : 0)
+        - (path.basename(fn.file).toLowerCase() === "__init__.py" ? 100 : 0);
+      return { fn, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.fn.startLine - b.fn.startLine)
+    .slice(0, limit)
+    .map((item) => item.fn.id);
+
+  const makeStep = (id, title, layer, explain, functionIds) => ({
+    id,
+    title,
+    layer,
+    explain,
+    functionIds,
+  });
+  const makeJourney = (id, title, question, mentalModel, steps) => ({
+    id,
+    title,
+    question,
+    mentalModel,
+    source: "local-fallback",
+    steps,
+  });
+
+  return [
+    makeJourney(
+      "simple-qa",
+      "简单问答",
+      "用户发来一句话后，agent 如何组织上下文并得到 LLM 回复？",
+      "消息先进入统一 agent loop，再拼出 system prompt、history、memory、skills 和用户输入，交给 LLM；如果模型没有要求调用 tools，就把文本回复发回用户。",
+      [
+        makeStep("receive-message", "接收用户消息", "harness", "不同入口来的消息先进入统一消息通道，后面的 agent loop 不需要关心它来自 CLI、API 还是聊天平台。", find([/bus|channel|message|consume|inbound/i], 3)),
+        makeStep("build-context", "构建上下文", "context", "把用户输入、history、memory、skills 等材料整理成 LLM 能读的 messages。", find([/contextbuilder.*build|build_messages|build_system_prompt|memory|skills/i], 4)),
+        makeStep("call-llm", "请求 LLM", "harness", "程序把整理好的 messages 和模型参数交给 provider，等待模型返回文本或 tool call。", find([/_request_model|provider|completion|chat|llm|model/i], 3)),
+        makeStep("final-reply", "输出回复", "harness", "如果模型没有要求调用工具，agent 把最终文本保存并返回给用户。", find([/final|append_final|save_turn|stream/i], 3)),
+      ],
+    ),
+    makeJourney(
+      "context-assembly",
+      "上下文",
+      "agent 如何决定让 LLM 看到哪些信息，并把信息控制在正确、少量、可用的范围内？",
+      "context 不是把所有东西塞给模型，而是从用户输入、history、memory、文件、检索结果和 tool result 中挑出当前需要的材料，组织成 messages/system prompt。",
+      [
+        makeStep("collect-context", "收集可见信息", "context", "程序从用户消息、history、memory、文件上下文、retrieval result 和 tool result 中收集候选材料。", find([/history|memory|context|retrieval|file|tool_result/i], 5)),
+        makeStep("shape-messages", "组织 messages", "context", "候选材料会被整理成 LLM 能理解的 system/user/assistant/tool messages，而不是原始程序对象。", find([/build_messages|to_blocks|message|append.*tool|contextbuilder/i], 5)),
+        makeStep("control-budget", "控制信息量", "context", "当材料太多时，agent 会压缩、截断或清理一部分内容，优先保留当前任务最有用的信息。", find([/compact|compress|budget|truncate|snip|context_window/i], 5)),
+        makeStep("inject-tool-result", "注入工具结果", "context", "tool result 会被放回 messages，让下一轮 LLM 能基于真实执行结果继续推理。", find([/tool_result|add_tool_result|normalize_tool_result|backfill/i], 5)),
+      ],
+    ),
+    makeJourney(
+      "tool-calling",
+      "工具调用",
+      "LLM 为什么会调用工具，程序如何执行工具并把结果交还给模型？",
+      "工具 schema 先暴露给 LLM；模型返回 tool call 后，程序执行对应 tool，把 tool result 追加进 messages，再让 LLM 基于结果继续回答。",
+      [
+        makeStep("expose-tools", "暴露 tools", "prompt", "程序把可用 tools 和参数格式交给模型，让模型知道什么时候能请求外部能力。", find([/tool.*schema|registry|tools|mcp/i], 4)),
+        makeStep("detect-tool-call", "识别 tool call", "harness", "模型响应里如果包含 tool call，agent loop 不直接结束，而是进入工具执行分支。", find([/should_execute_tools|tool_calls|run$/i], 4)),
+        makeStep("execute-tools", "执行 tools/MCP", "harness", "程序根据模型给出的 tool 名称和参数调用本地 tool 或 MCP tool。", find([/_execute_tools|_run_tool|mcp|tool/i], 4)),
+        makeStep("feed-result-back", "回填工具结果", "context", "tool result 被包装成 tool message 追加回上下文，下一轮 LLM 才能基于结果继续推理。", find([/tool_result|normalize_tool_result|messages.*append|backfill/i], 4)),
+      ],
+    ),
+    makeJourney(
+      "mcp-calling",
+      "MCP 调用",
+      "外部 MCP tool 如何被 agent 当成可调用能力使用？",
+      "MCP server 暴露 tool schema，agent 把它们注册成统一 tools；模型请求 tool call 后，程序通过 MCP client 执行并拿回结果。",
+      [
+        makeStep("connect-mcp", "连接 MCP server", "harness", "程序先连接 MCP server，拿到外部工具列表和 schema。", find([/mcp|connect|server/i], 4)),
+        makeStep("register-mcp-tools", "注册 MCP tools", "harness", "MCP tools 被转成 agent 内部统一的 tool 表示，后续模型不用关心工具来自本地还是 MCP。", find([/mcp|registry|tool/i], 4)),
+        makeStep("execute-mcp-tool", "执行 MCP tool", "harness", "当模型请求某个 MCP tool，程序把参数发给 MCP server，再把执行结果包装回 tool result。", find([/mcp|_run_tool|execute/i], 4)),
+      ],
+    ),
+    makeJourney(
+      "memory-system",
+      "记忆系统",
+      "短期 history 和长期 memory 如何被读取、写入，并在下一轮任务中再次生效？",
+      "memory 不是 LLM 自己保存的脑子，而是程序维护的外部状态；每轮请求前读取、必要时注入，请求后再把新事实或历史写回去。",
+      [
+        makeStep("read-memory", "读取 memory/history", "context", "agent 在请求 LLM 前读取短期 history 和长期 memory，准备把相关事实暴露给模型。", find([/read.*memory|history|get_memory|get_history|conversation/i], 5)),
+        makeStep("inject-memory", "注入当前请求", "context", "memory/history 会被转成 prompt 片段或 messages，让 LLM 像是记得之前发生过什么。", find([/build_system_prompt|build_messages|get_memory_context|memory/i], 5)),
+        makeStep("write-memory", "写回新信息", "harness", "当本轮对话产生新的事实或状态时，程序会把它保存进 memory/history，供后续任务使用。", find([/write.*memory|save_turn|append.*history|persist/i], 5)),
+      ],
+    ),
+    makeJourney(
+      "skills-loading",
+      "skills 系统",
+      "skills 如何变成 LLM 当前能使用的任务知识？",
+      "skills 不是模型自动拥有的能力，程序会挑出 always skills 或相关 skills，把说明文本拼进 system prompt/context。",
+      [
+        makeStep("select-skills", "选择 skills", "context", "程序先判断哪些 skills 当前应该暴露给 LLM，例如 always skills。", find([/always.*skills?|get_always_skills|skill/i], 4)),
+        makeStep("load-skills", "加载 skills 内容", "context", "被选中的 skills 会被读取成文本说明，作为当前任务可用知识。", find([/load.*skills?|skills.*context/i], 4)),
+        makeStep("inject-skills", "注入 prompt/context", "prompt", "skills 内容或摘要被拼入 system prompt/context，让 LLM 知道有哪些额外能力。", find([/skills.*summary|build_system_prompt|render_template/i], 4)),
+      ],
+    ),
+    makeJourney(
+      "state-scheduling",
+      "状态调度",
+      "agent 如何在多轮任务里记住自己跑到哪一步，并调度消息、session、subagent 或定时任务？",
+      "agent 不只是一次函数调用；它需要维护 run/session/turn/tool 状态，用 loop 和 message bus 驱动下一步，并在需要时派生 subagent 或后台任务。",
+      [
+        makeStep("agent-loop", "AgentLoop 推进任务", "harness", "agent loop 持续接收事件、判断下一步动作，并把任务从输入推进到模型请求、工具执行或最终回复。", find([/agentloop|loop|run$|process|step/i], 5)),
+        makeStep("message-bus", "消息总线分发", "harness", "message bus 把不同来源的消息统一排队和分发，让核心 agent 不被具体入口绑死。", find([/bus|inbound|outbound|channel|message/i], 5)),
+        makeStep("session-state", "更新 session 状态", "harness", "程序记录当前 session、run、turn、pending tool 等状态，保证下一步知道接着哪里运行。", find([/session|state|pending|checkpoint|persist|runtime/i], 5)),
+        makeStep("subagent-schedule", "调度子任务", "harness", "当任务需要拆分或后台运行时，agent 可以派生 subagent 或 schedule，让主流程保持可控。", find([/subagent|schedule|background|task|queue/i], 5)),
+      ],
+    ),
+    makeJourney(
+      "fallback",
+      "异常兜底",
+      "模型空回复、超长、工具失败时，agent 如何避免直接崩掉？",
+      "agent loop 会识别异常状态，尝试重试、恢复、补齐工具结果或返回可理解的错误。",
+      [
+        makeStep("retry-empty", "空回复重试", "harness", "模型返回空内容时，程序不会立刻结束，而是尝试重试或请求最终化。", find([/empty|finalization|retry/i], 4)),
+        makeStep("recover-length", "超长恢复", "harness", "模型因为长度限制中断时，程序会继续请求，把输出接起来。", find([/length|recovery|continue/i], 4)),
+        makeStep("repair-tools", "修复工具结果", "context", "缺失或孤立的 tool result 会被清理或补齐，防止下一轮 LLM 输入格式坏掉。", find([/orphan|backfill|tool_result|repair/i], 4)),
+      ],
+    ),
+  ];
+}
+
+function localAnnotations(functions, flowTabs, agentJourneys = []) {
+  const ids = new Set([...flowFunctionIds(flowTabs), ...agentJourneyFunctionIds(agentJourneys)]);
   return functions
     .filter((fn) => ids.has(fn.id))
-    .slice(0, 16)
+    .slice(0, 28)
     .map((fn) => {
       const width = Math.max(1, fn.endLine - fn.startLine + 1);
       const firstBlockEnd = Math.min(fn.endLine, fn.startLine + Math.min(10, width - 1));
@@ -1010,10 +1149,12 @@ function localAnnotations(functions, flowTabs) {
         },
         floatingPanel: {
           scenarioFlow: {
-            scenario: "本地索引已定位这个关键函数；需要 LLM 补充它属于哪个学习场景。",
-            summary: "等待 LLM 补充：这段函数什么时候执行、拿什么数据、如何处理、输出给谁。",
+            journey: "本地规则推断",
+            currentStep: "等待 LLM 补充机制步骤",
+            scenario: "本地索引已定位这个关键函数；需要 LLM 补充它属于哪条 agent 旅程。",
+            summary: "本地只能定位源码证据，完整机制讲解需要 LLM 根据 journey 补充。",
             steps: [],
-            output: "等待 LLM 补充场景数据流。",
+            output: "等待 LLM 补充 agent 机制讲解。",
           },
           variables: {
             flows: [
@@ -1115,6 +1256,102 @@ function sanitizeLearningScenarios(rawScenarios, functions) {
 
 function scenariosForFunction(learningScenarios, functionId) {
   return (learningScenarios || []).filter((scenario) => scenario.entryFunctionIds.includes(functionId));
+}
+
+function sanitizeAgentJourneys(rawJourneys, functions) {
+  const functionIds = new Set(functions.map((fn) => fn.id));
+  return (Array.isArray(rawJourneys) ? rawJourneys : []).slice(0, 8).map((raw, journeyIndex) => {
+    const steps = (Array.isArray(raw?.steps) ? raw.steps : []).slice(0, 10).map((step, stepIndex) => {
+      const ids = (Array.isArray(step?.functionIds) ? step.functionIds : [])
+        .map(String)
+        .filter((id) => functionIds.has(id))
+        .slice(0, 6);
+      return {
+        id: String(step?.id || `step-${stepIndex}`).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 48),
+        title: String(step?.title || "机制步骤").slice(0, 24),
+        layer: ["prompt", "context", "harness"].includes(String(step?.layer || "").toLowerCase())
+          ? String(step.layer).toLowerCase()
+          : "harness",
+        explain: String(step?.explain || "").slice(0, 260),
+        functionIds: ids,
+      };
+    }).filter((step) => step.explain || step.functionIds.length);
+    if (!steps.length) {
+      return null;
+    }
+    return {
+      id: String(raw?.id || `journey-${journeyIndex}`).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 48),
+      title: String(raw?.title || "Agent 旅程").slice(0, 18),
+      question: String(raw?.question || "").slice(0, 180),
+      mentalModel: String(raw?.mentalModel || "").slice(0, 260),
+      source: raw?.source === "local-fallback" ? "local-fallback" : "",
+      steps,
+    };
+  }).filter(Boolean);
+}
+
+function mergeAgentJourneys(primary, fallback) {
+  const order = [
+    "simple-qa",
+    "context-assembly",
+    "tool-calling",
+    "mcp-calling",
+    "memory-system",
+    "skills-loading",
+    "state-scheduling",
+    "fallback",
+  ];
+  const byKey = new Map();
+  for (const journey of [...(fallback || []), ...(primary || [])]) {
+    const key = canonicalJourneyKey(journey);
+    if (key) {
+      byKey.set(key, { ...journey, id: key });
+    }
+  }
+  return order.map((key) => byKey.get(key)).filter(Boolean);
+}
+
+function canonicalJourneyKey(journey) {
+  const id = String(journey?.id || "").toLowerCase();
+  const title = String(journey?.title || "").toLowerCase();
+  const text = `${id} ${title}`;
+  if (/simple|qa|问答|聊天|回复/.test(text)) return "simple-qa";
+  if (/context|上下文|history|retrieval|compression|装配/.test(text)) return "context-assembly";
+  if (/tool-calling|工具调用|tool call/.test(text)) return "tool-calling";
+  if (/mcp/.test(text)) return "mcp-calling";
+  if (/memory|记忆/.test(text)) return "memory-system";
+  if (/skills?|技能/.test(text)) return "skills-loading";
+  if (/state|schedule|subagent|loop|bus|状态|调度|会话|消息总线/.test(text)) return "state-scheduling";
+  if (/fallback|retry|异常|兜底|恢复|重试/.test(text)) return "fallback";
+  return "";
+}
+
+function journeyScenarios(agentJourneys) {
+  return (agentJourneys || []).flatMap((journey) => (journey.steps || []).map((step) => ({
+    id: `${journey.id}-${step.id}`,
+    layer: step.layer,
+    title: step.title,
+    userQuestion: journey.question,
+    entryFunctionIds: step.functionIds || [],
+    dataInputs: [],
+    output: "",
+    whyImportant: `${journey.title}：${step.explain}`,
+  }))).filter((scenario) => scenario.entryFunctionIds.length);
+}
+
+function journeyStepsForFunction(agentJourneys, functionId) {
+  return (agentJourneys || []).flatMap((journey) => (journey.steps || [])
+    .filter((step) => (step.functionIds || []).includes(functionId))
+    .map((step) => ({
+      journeyId: journey.id,
+      journeyTitle: journey.title,
+      journeyQuestion: journey.question,
+      mentalModel: journey.mentalModel,
+      stepId: step.id,
+      stepTitle: step.title,
+      layer: step.layer,
+      explain: step.explain,
+    })));
 }
 
 function localLearningScenarios(flowTabs) {
@@ -1232,12 +1469,14 @@ function sanitizeScenarioFlow(rawFlow, functionStart, functionEnd, lineCount, cl
   }).filter((step) => step.startLine <= step.endLine && (step.does || step.produces || step.takes.length));
 
   const scenario = String(rawFlow.scenario || "").slice(0, 180);
+  const journey = String(rawFlow.journey || "").slice(0, 80);
+  const currentStep = String(rawFlow.currentStep || "").slice(0, 80);
   const summary = String(rawFlow.summary || "").slice(0, 220);
   const output = String(rawFlow.output || "").slice(0, 160);
-  if (!scenario && !summary && !steps.length && !output) {
+  if (!journey && !currentStep && !scenario && !summary && !steps.length && !output) {
     return null;
   }
-  return { scenario, summary, steps, output };
+  return { journey, currentStep, scenario, summary, steps, output };
 }
 
 function isLowValueReturnBlock(block, lines) {
@@ -1479,22 +1718,37 @@ function buildSemanticsPrompt({ context, summary, supportFiles, functions }) {
   return `
 你在帮助构建 HKUDS/nanobot 的 agent 源码学习页面。请基于真实目录、README、函数索引、calls、callSites 输出结构化 JSON。
 
-产品目标：不是给用户一份总结，而是让用户沿着源码学习“这个 agent 在什么场景下，拿什么数据，如何处理，最后交给谁”。
+产品目标：帮助 agent 小白理解“agent 是怎样跑起来的”。源码只是证据，不要把右侧流程写成函数清单。
 
-三层必须严格区分：
-- Prompt：研究 system prompt、身份、规则、格式、工具说明如何让 LLM 明白任务。只选“写给 LLM 的指令/规则/格式/能力说明”相关函数。
-- Context：研究 history、memory、文件、工具结果、压缩策略如何把正确少量信息暴露给 LLM。只选“选择/整理/注入信息给 LLM 看”相关函数。
-- Harness：研究 AgentLoop、消息总线、模型请求、tools/MCP、状态、兜底如何驱动 agent。只选“程序如何调度模型、工具、状态”的函数。
+你必须优先生成 agentJourneys。必须尽量输出以下 8 类 journey；只有输入中完全找不到相关函数时才允许省略，并在 mentalModel 里说明“源码证据不足”：
+1. 简单问答：用户消息进入 -> 统一消息格式 -> 构建上下文 -> 调用 LLM -> 输出回复。
+2. 上下文：history、memory、file context、retrieval result、tool result、compression 如何进入 messages/system prompt。
+3. 工具调用：暴露 tools -> LLM 产生 tool call -> 程序执行 tool/MCP -> tool result 回填 -> 再次请求 LLM。
+4. MCP 调用：连接 MCP server -> 注册 MCP tools -> 执行 MCP tool -> 回填 MCP 结果。
+5. 记忆系统：读取、注入、写回短期 history 和长期 memory。
+6. skills 系统：读取 always skills/skills summary -> 注入 prompt/context。
+7. 状态调度：AgentLoop、message bus、session/run state、state update、subagent、schedule 如何推动任务。
+8. 异常兜底：空回复、超长、tool 失败、格式损坏如何恢复。
+
+每个 journey step 只绑定少量关键函数作为源码证据。不要把实现细节暴露成主线；要先讲机制，再给函数入口。
+
+step.layer 只作为小标签：
+- prompt：写给 LLM 的身份、规则、格式、工具说明。
+- context：选择、压缩、注入 LLM 应该看到的信息。
+- harness：调度消息、模型、tools/MCP、状态、重试、输出。
 
 严格要求：
 1. 只引用输入中存在的 path 和 function id。
-2. 先生成 learningScenarios，再由 learningScenarios 派生 flowTabs；不要直接堆函数。
-3. 每个 learning scenario 必须回答：用户在学什么问题、入口函数是谁、拿了哪些数据、输出是什么、为什么重要。
-4. Prompt 和 Context 不能混：build_system_prompt 里“写规则/身份”属于 Prompt；读取 history/memory/files 并控制注入内容属于 Context。
-5. 文件夹、文件、函数说明都用关键词或极短词组；低置信度就留空，不要输出文件名/函数名，也不要输出“循环、历史、执行步骤、消息处理”这类废标签。
-6. 保留这些英文术语，不要硬翻译：agent、skills、memory、prompt、system prompt、tools、MCP、LLM、provider、context、hook、channel、session。
-7. flow 卡片标题要极简；函数列表只引用 function id；target 优先使用 callSites，没有 callSites 才用 definition。
-8. 不要编造不存在的函数。
+2. 先生成 agentJourneys；flowTabs 只作为旧 UI 兼容字段，可以从 journeys 粗略派生。
+3. 不要把 Prompt / Context / Harness 当作 journey 名称；它们只能作为 step.layer 标签。
+4. 第一个 journey 必须是“简单问答”，并且至少覆盖：消息进入、上下文构建、LLM 请求、回复处理。
+5. 必须生成“上下文”，并尽量覆盖：history、memory、file context、retrieval result、tool result injection、compression、session context。
+6. 必须生成“状态调度”，并尽量覆盖：agent loop、message bus、session state、run state、state update、subagent、schedule。
+7. 如果仓库包含 memory、skills、MCP、fallback 相关函数，必须分别生成对应 journey；不要只输出“简单问答”和“工具调用”。
+8. 文件夹、文件、函数说明都用关键词或极短词组；低置信度就留空，不要输出文件名/函数名，也不要输出“循环、历史、执行步骤、消息处理”这类废标签。
+9. 保留这些英文术语，不要硬翻译：agent、skills、memory、prompt、system prompt、tools、MCP、LLM、provider、context、hook、channel、session。
+10. journey step 的 explain 要给 agent 小白看懂，禁止“队列消费、执行步骤、添加身份、处理数据、路由队列”这类实现黑话。应该写“把工具结果塞回 messages，让 LLM 能继续基于真实结果推理”这种机制语言。
+11. 不要编造不存在的函数。
 
 输出 JSON 形状：
 {
@@ -1505,18 +1759,24 @@ function buildSemanticsPrompt({ context, summary, supportFiles, functions }) {
   "functionLabels": [
     { "functionId": "真实函数 id", "label": "关键词或空字符串", "importance": "core|normal" }
   ],
-  "learningScenarios": [
+  "agentJourneys": [
     {
-      "id": "短 id",
-      "layer": "prompt|context|harness",
-      "title": "场景标题",
-      "userQuestion": "用户通过这个场景想搞懂什么",
-      "entryFunctionIds": ["真实函数 id"],
-      "dataInputs": ["这个场景会拿到的数据"],
-      "output": "这个场景最终产出什么",
-      "whyImportant": "为什么这是学习 agent 构建的关键点"
+      "id": "simple-qa",
+      "title": "简单问答",
+      "question": "用户发来一句话后，agent 如何组织上下文并得到 LLM 回复？",
+      "mentalModel": "一句话心智模型",
+      "steps": [
+        {
+          "id": "receive-message",
+          "title": "接收用户消息",
+          "layer": "prompt|context|harness",
+          "explain": "面向 agent 小白的机制解释",
+          "functionIds": ["真实函数 id"]
+        }
+      ]
     }
   ],
+  "learningScenarios": [],
   "flowTabs": [
     {
       "id": "prompt|context|harness",
@@ -1544,7 +1804,7 @@ ${JSON.stringify(candidates, null, 2)}
   `.trim();
 }
 
-function buildAnnotationPrompt({ context, treeNotes, flowTabs, learningScenarios, keyFunctions, sources }) {
+function buildAnnotationPrompt({ context, treeNotes, flowTabs, learningScenarios, agentJourneys, keyFunctions, sources }) {
   const sourceByPath = new Map(sources.map((source) => [source.path, source]));
   const snippets = keyFunctions.map((fn) => {
     const source = sourceByPath.get(fn.file);
@@ -1558,25 +1818,29 @@ function buildAnnotationPrompt({ context, treeNotes, flowTabs, learningScenarios
       endLine: fn.endLine,
       calls: fn.calls.slice(0, 20),
       learningScenarios: scenariosForFunction(learningScenarios, fn.id),
+      journeySteps: journeyStepsForFunction(agentJourneys, fn.id),
       code: lines.map((line, index) => `${String(fn.startLine + index).padStart(4, " ")} | ${line}`).join("\n"),
     };
   });
 
   return `
-你在为 nanobot 源码学习页面生成关键函数注释。请只基于给定源码和 learning scenarios 输出 JSON。
+你在为 nanobot 源码学习页面生成关键函数注释。请只基于给定源码和 agent journeys 输出 JSON。
 
 严格要求：
 1. 每个 key function 生成一个 annotation。
 2. functionRange 必须在函数真实 startLine/endLine 内。
-3. floatingPanel.scenarioFlow 是核心；不要再围绕“变量列表”讲解，要围绕“场景中的数据处理步骤”讲。
-4. scenario 必须回答“什么场景下执行这段函数”；summary 必须回答“这段函数在该场景里负责什么”。
-5. steps 必须对应真实源码行，每步回答：拿什么数据 takes、如何处理 does、产出什么 produces、交给谁 next。
-6. steps 不要包含普通 return；只有 return 同时承担协议封装、格式转换、错误兜底时，才把它合并进更大的步骤。
-7. 禁止输出这些需要猜的短语：添加身份、添加文件、消费消息、处理优先级、路由到队列、执行步骤、处理数据、读取数据。
-8. 如果源码已有英文 docstring 或注释，请吸收其真实含义，用清楚中文重写。
-9. 保留这些英文术语，不要硬翻译：agent、skills、memory、prompt、system prompt、tools、MCP、LLM、provider、context、hook、channel、session。
-10. highlightVariables 只放 steps 的 takes/produces 中真正值得高亮的变量名，最多 4 个。
-11. 不要输出 markdown，不要解释 JSON 之外的内容。
+3. floatingPanel.scenarioFlow 是核心；不要围绕变量列表讲解，要解释“这个函数在 agent 旅程的哪一步提供证据”。
+4. scenario 必须写“所属旅程 + 当前机制步骤”；summary 必须屏蔽无关实现细节，说明这段代码在 agent 机制里承担什么角色。
+5. steps 必须对应真实源码行，每步回答：这一步拿到什么 agent 数据 takes、如何把它变成下一阶段需要的形态 does、产出什么 produces、交给谁 next。
+6. 如果函数属于“上下文”，重点解释：拿到哪些信息、为什么要给 LLM、如何控制信息量、最后变成 messages/system prompt/tool message 的哪一部分。
+7. 如果函数属于“状态调度”，重点解释：谁触发这一步、哪个 state 被更新、下一步交给 agent loop/message bus/subagent/schedule 的哪个机制。
+8. 如果函数属于“工具调用”或“MCP 调用”，重点解释：tool schema 如何暴露、tool call 如何执行、tool result 如何回填给下一轮 LLM。
+9. steps 不要包含普通 return；只有 return 同时承担协议封装、格式转换、错误兜底时，才把它合并进更大的步骤。
+10. 禁止输出这些需要猜的短语：添加身份、添加文件、消费消息、处理优先级、路由到队列、执行步骤、处理数据、读取数据。
+11. 如果源码已有英文 docstring 或注释，请吸收其真实含义，用清楚中文重写。
+12. 保留这些英文术语，不要硬翻译：agent、skills、memory、prompt、system prompt、tools、MCP、LLM、provider、context、hook、channel、session。
+13. highlightVariables 保持空数组；UI 现在不再需要变量染色。
+14. 不要输出 markdown，不要解释 JSON 之外的内容。
 
 输出 JSON 形状：
 {
@@ -1587,17 +1851,19 @@ function buildAnnotationPrompt({ context, treeNotes, flowTabs, learningScenarios
       "functionRange": { "startLine": 1, "endLine": 10 },
       "floatingPanel": {
         "scenarioFlow": {
-          "scenario": "什么场景下执行这段函数",
-          "summary": "这段函数在该场景里的职责",
+          "journey": "所属旅程标题",
+          "currentStep": "当前机制步骤",
+          "scenario": "什么 agent 机制场景下执行这段函数",
+          "summary": "屏蔽无关实现细节后，这段代码在 agent 机制里承担什么角色",
           "steps": [
             {
               "title": "步骤名",
               "startLine": 1,
               "endLine": 3,
-              "takes": ["输入数据"],
-              "does": "这一步如何组织、筛选、转换或传递数据",
-              "produces": "这一步产出什么",
-              "next": "产出交给谁/下一步做什么"
+              "takes": ["用户消息/history/memory/tools/其他 agent 数据"],
+              "does": "这一步如何把 agent 数据变成下一阶段需要的形态",
+              "produces": "这一步产出什么 agent 数据",
+              "next": "交给 LLM/provider/tool executor/message bus/用户"
             }
           ],
           "output": "最终输出"
@@ -1617,8 +1883,8 @@ ${JSON.stringify(treeNotes.slice(0, 100), null, 2)}
 流程卡片：
 ${JSON.stringify(flowTabs, null, 2)}
 
-学习场景：
-${JSON.stringify(learningScenarios, null, 2)}
+Agent 旅程：
+${JSON.stringify(agentJourneys, null, 2)}
 
 关键函数源码：
 ${JSON.stringify(snippets, null, 2)}
@@ -1649,11 +1915,14 @@ function mergeSemantics(localNotes, localFlows, functions, raw) {
   }
   const sanitizedFlowTabs = sanitizeFlowTabs(raw?.flowTabs, functions);
   const learningScenarios = sanitizeLearningScenarios(raw?.learningScenarios, functions);
+  const agentJourneys = sanitizeAgentJourneys(raw?.agentJourneys, functions);
+  const localJourneys = localAgentJourneys(functions);
 
   return {
     projectSummary: String(raw?.project?.summary || "nanobot agent 源码学习").slice(0, 140),
     treeNotes,
     learningScenarios,
+    agentJourneys: mergeAgentJourneys(agentJourneys, localJourneys),
     flowTabs: sanitizedFlowTabs.some((tab) => tab.id !== "overview" && tab.cards.length)
       ? sanitizedFlowTabs
       : localFlows,
@@ -1697,10 +1966,12 @@ async function analyzeNanobot(input) {
 
   const localNotes = localTreeNotes(summary);
   const localFlows = localFlowTabs(functions);
-  const localScenarios = localLearningScenarios(localFlows);
+  const localJourneys = localAgentJourneys(functions);
+  const localScenarios = journeyScenarios(localJourneys);
   let projectSummary = `${context.repo.name} agent 源码学习`;
   let treeNotes = localNotes;
   let flowTabs = localFlows;
+  let agentJourneys = localJourneys;
   let learningScenarios = localScenarios;
   const llmEnabled = Boolean(input.apiKey);
 
@@ -1722,9 +1993,11 @@ async function analyzeNanobot(input) {
       projectSummary = merged.projectSummary;
       treeNotes = merged.treeNotes;
       flowTabs = merged.flowTabs;
-      learningScenarios = merged.learningScenarios.length ? merged.learningScenarios : localLearningScenarios(flowTabs);
+      agentJourneys = merged.agentJourneys.length ? merged.agentJourneys : localJourneys;
+      learningScenarios = journeyScenarios(agentJourneys);
       logStep(logs, "llm", "LLM generated tree notes and flow cards.", {
         treeNotes: treeNotes.length,
+        journeys: agentJourneys.length,
         scenarios: learningScenarios.length,
         tabs: flowTabs.length,
       });
@@ -1737,9 +2010,9 @@ async function analyzeNanobot(input) {
     logStep(logs, "fallback", "No API key provided; used local semantic fallback.", {});
   }
 
-  const keyIds = flowFunctionIds(flowTabs);
-  const keyFunctions = functions.filter((fn) => keyIds.has(fn.id)).slice(0, 18);
-  let keyAnnotations = localAnnotations(functions, flowTabs);
+  const keyIds = new Set([...flowFunctionIds(flowTabs), ...agentJourneyFunctionIds(agentJourneys)]);
+  const keyFunctions = functions.filter((fn) => keyIds.has(fn.id)).slice(0, 28);
+  let keyAnnotations = localAnnotations(functions, flowTabs, agentJourneys);
 
   if (llmEnabled && keyFunctions.length) {
     try {
@@ -1754,7 +2027,7 @@ async function analyzeNanobot(input) {
         baseUrl: input.baseUrl,
         model: input.model,
         systemPrompt: "你是一个源码注释结构化标注器。你只输出合法 JSON。",
-        userPrompt: buildAnnotationPrompt({ context, treeNotes, flowTabs, learningScenarios, keyFunctions, sources }),
+        userPrompt: buildAnnotationPrompt({ context, treeNotes, flowTabs, learningScenarios, agentJourneys, keyFunctions, sources }),
       });
       const annotations = sanitizeAnnotations(annotationRaw?.keyAnnotations, functions, sources);
       if (annotations.length) {
@@ -1797,6 +2070,7 @@ async function analyzeNanobot(input) {
     functions: hydratedFunctions,
     keyAnnotations,
     flowTabs,
+    agentJourneys,
     learningScenarios,
     logs,
   };
