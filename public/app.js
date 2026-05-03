@@ -549,7 +549,7 @@ function renderFloatingPanel() {
   }
   const fn = functionById(activeAnnotation.functionId);
   floatingTitle.textContent = fn?.fullName || "关键函数";
-  floatingBody.innerHTML = renderVariables(activeAnnotation);
+  floatingBody.innerHTML = renderScenarioFlow(activeAnnotation);
   floatingPanel.classList.remove("hidden");
   if (floatingPosition) {
     floatingPanel.style.left = `${floatingPosition.left}px`;
@@ -562,12 +562,60 @@ function renderFloatingPanel() {
   }
 }
 
-function renderVariables(annotation) {
+function renderScenarioFlow(annotation) {
+  const scenarioFlow = annotation.floatingPanel?.scenarioFlow;
+  if (!scenarioFlow) {
+    return renderLegacyVariables(annotation);
+  }
+  const steps = Array.isArray(scenarioFlow.steps) ? scenarioFlow.steps : [];
+  return `
+    <section class="scenario-flow">
+      <div class="scenario-card">
+        <span class="scenario-label">场景</span>
+        <strong>${escapeHtml(scenarioFlow.scenario || "等待 LLM 补充场景。")}</strong>
+        ${scenarioFlow.summary ? `<p>${escapeHtml(scenarioFlow.summary)}</p>` : ""}
+      </div>
+      <div class="scenario-steps">
+        ${steps.length ? steps.map(renderScenarioStep).join("<div class=\"scenario-arrow\">↓</div>") : "<div class=\"empty-flow\">等待 LLM 补充场景数据流</div>"}
+      </div>
+      ${scenarioFlow.output ? `<div class="scenario-output"><span>最终输出</span>${escapeHtml(scenarioFlow.output)}</div>` : ""}
+    </section>
+  `;
+}
+
+function renderScenarioStep(step, index) {
+  return `
+    <article class="scenario-step">
+      <header>
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(step.title || "步骤")}</strong>
+        <small>${escapeHtml(`${step.startLine || "?"}-${step.endLine || "?"}`)}</small>
+      </header>
+      <div class="scenario-io">
+        <div>
+          <span>拿到</span>
+          <p>${escapeHtml((Array.isArray(step.takes) && step.takes.length) ? step.takes.join(" + ") : "函数当前输入")}</p>
+        </div>
+        <div>
+          <span>处理</span>
+          <p>${escapeHtml(step.does || "等待 LLM 补充处理方式")}</p>
+        </div>
+        <div>
+          <span>产出</span>
+          <p>${escapeHtml(step.produces || "等待 LLM 补充产出")}</p>
+        </div>
+      </div>
+      ${step.next ? `<footer>${escapeHtml(step.next)}</footer>` : ""}
+    </article>
+  `;
+}
+
+function renderLegacyVariables(annotation) {
   const vars = annotation.floatingPanel?.variables || {};
   const flows = vars.flows || legacyFlows(vars);
   return `
-    <div class="flow-note">${escapeHtml(vars.note || "这段代码的数据流还没有详细说明。")}</div>
-    <div class="variable-flows">
+    <div class="flow-note">旧版变量流：${escapeHtml(vars.note || "这段代码的数据流还没有详细说明。")}</div>
+    <div class="variable-flows legacy-flow">
       ${flows.length ? flows.map(renderVariableFlow).join("") : "<div class=\"empty-flow\">暂无有价值变量说明</div>"}
     </div>
   `;

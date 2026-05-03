@@ -462,6 +462,117 @@ input {
   background: rgba(223, 243, 240, 0.62);
 }
 
+.scenario-flow {
+  display: grid;
+  gap: 10px;
+}
+
+.scenario-card {
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(223, 243, 240, 0.68);
+}
+
+.scenario-card .scenario-label,
+.scenario-output span,
+.scenario-io span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.scenario-card strong {
+  display: block;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.scenario-card p {
+  margin: 5px 0 0;
+  color: var(--text-main);
+}
+
+.scenario-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.scenario-step {
+  padding: 10px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.scenario-step header {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.scenario-step header span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.scenario-step header strong {
+  min-width: 0;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenario-step header small {
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+
+.scenario-io {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
+.scenario-io div {
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: rgba(223, 248, 242, 0.58);
+}
+
+.scenario-io p {
+  margin: 0;
+  color: var(--text-main);
+}
+
+.scenario-step footer,
+.scenario-output {
+  margin-top: 8px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: var(--text-main);
+  background: #fff7dc;
+}
+
+.scenario-arrow {
+  justify-self: center;
+  color: var(--accent);
+  font-weight: 900;
+}
+
 .variable-flows {
   display: grid;
   gap: 10px;
